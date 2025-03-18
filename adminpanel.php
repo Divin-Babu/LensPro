@@ -7,7 +7,7 @@ if ($_SESSION['role'] !== 'admin') {
     exit();
 }
 function getPendingPhotographers($conn) {
-    $sql = "SELECT u.*, p.bio, p.location, p.category, p.approval_status 
+    $sql = "SELECT u.*, p.bio, p.location, p.category, p.approval_status, p.id_proof 
             FROM tbl_user u 
             JOIN tbl_photographer p ON u.user_id = p.photographer_id 
             WHERE u.role = 'photographer' AND p.approval_status = 'pending'
@@ -47,7 +47,90 @@ function getPendingPhotographers($conn) {
         body {
             background-color: #f5f6fa;
         }
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1050;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+        }
 
+        .modal-content {
+    position: relative;
+    background-color: #fefefe;
+    margin: 2% auto; /* Reduced from 5% to show more content */
+    padding: 25px;
+    border-radius: 10px;
+    width: 85%; /* Increased from 70% */
+    max-width: 1000px; /* Increased from 800px */
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    animation: modalopen 0.3s;
+}
+
+        @keyframes modalopen {
+            from {opacity: 0}
+            to {opacity: 1}
+        }
+
+        .close-modal {
+            position: absolute;
+            right: 20px;
+            top: 15px;
+            font-size: 28px;
+            font-weight: bold;
+            color: #aaa;
+            cursor: pointer;
+        }
+
+        .close-modal:hover {
+            color: #555;
+        }
+
+        .modal-header {
+            padding-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+
+        .modal-body {
+    max-height: 80vh; 
+    overflow: auto;
+}
+
+        .view-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-right: 0.5rem;
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .view-btn:hover {
+            background-color: #2980b9;
+        }
+
+        .modal-body img {
+    max-width: 100%;
+    max-height: 75vh; /* Added to ensure images aren't too tall */
+    height: auto;
+    display: block;
+    margin: 0 auto;
+}
+
+.modal-body object {
+    width: 100%;
+    height: 75vh; /* Increased from 500px fixed height */
+    display: block;
+    margin: 0 auto;
+}
         .sidebar {
             position: fixed;
             left: 0;
@@ -122,7 +205,7 @@ function getPendingPhotographers($conn) {
             z-index: 100;
         }
 
-        .search-bar {
+        /* .search-bar {
             display: flex;
             align-items: center;
             background: #f5f6fa;
@@ -138,7 +221,7 @@ function getPendingPhotographers($conn) {
             padding: 0.2rem;
             width: 100%;
             margin-left: 0.5rem;
-        }
+        } */
 
         .admin-profile {
             display: flex;
@@ -207,6 +290,7 @@ function getPendingPhotographers($conn) {
             border-radius: 10px;
             padding: 1.5rem;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            margin-bottom: 25px;
         }
 
         .card-header {
@@ -397,12 +481,16 @@ function getPendingPhotographers($conn) {
             <img src="images/logowithoutname.png" alt="LensPro Logo">
             <span>LensPro</span>
         </div>
-        <a href="#" class="menu-item active">
+        <a href="adminpanel.php" class="menu-item active">
             <i class="fas fa-th-large"></i>
             Dashboard
         </a>
-        <a href="#" class="menu-item">
-            <i class="fas fa-users"></i>
+        <a href="adminviewusers.php" class="menu-item">
+            <i class="fas fa-user"></i>
+            Users
+        </a>
+        <a href="adminviewphotographer.php" class="menu-item">
+            <i class="fas fa-camera"></i>
             Photographers
         </a>
         <a href="#" class="menu-item">
@@ -417,10 +505,10 @@ function getPendingPhotographers($conn) {
             <i class="fas fa-star"></i>
             Reviews
         </a>
-        <a href="#" class="menu-item">
+        <!-- <a href="#" class="menu-item">
             <i class="fas fa-cog"></i>
             Settings
-        </a>
+        </a> -->
     </nav>
 
     <header class="header">
@@ -442,44 +530,80 @@ function getPendingPhotographers($conn) {
     </header>
 
     <main class="main-content">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Pending Photographer Approvals</h2>
+        </div>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Location</th>
+                    <th>Categories</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+    <?php
+    $pending_photographers = getPendingPhotographers($conn);
+    while($row = $pending_photographers->fetch_assoc()) {
+        echo "<tr>";
+        echo "<td>{$row['name']}</td>";
+        echo "<td>{$row['email']}</td>";
+        echo "<td>{$row['phno']}</td>";
+        echo "<td>{$row['location']}</td>";
+        echo "<td>{$row['category']}</td>";
+        echo "<td>
+                <button onclick=\"viewIdProof('{$row['id_proof']}')\" class='view-btn'>View ID</button>
+                <button onclick=\"approvePhotographer({$row['user_id']})\" class='approve-btn'>Approve</button>
+                <button onclick=\"rejectPhotographer({$row['user_id']})\" class='reject-btn'>Reject</button>
+            </td>";
+        echo "</tr>";
+    }
+    ?>
+</tbody>
+        </table>
+    </div>
         <div class="stats-grid">
             <div class="stat-card">
-                <h3>Total Photographers</h3>
+                <!-- <h3>Total Photographers</h3>
                 <div class="value">248</div>
                 <div class="trend up">
                     <i class="fas fa-arrow-up"></i>
                     12% this month
-                </div>
+                </div> -->
             </div>
             <div class="stat-card">
-                <h3>Active Bookings</h3>
+                <!-- <h3>Active Bookings</h3>
                 <div class="value">156</div>
                 <div class="trend up">
                     <i class="fas fa-arrow-up"></i>
                     8% this week
-                </div>
+                </div> -->
             </div>
             <div class="stat-card">
-                <h3>Total Revenue</h3>
+                <!-- <h3>Total Revenue</h3>
                 <div class="value">$52,945</div>
                 <div class="trend up">
                     <i class="fas fa-arrow-up"></i>
                     15% this month
-                </div>
+                </div> -->
             </div>
             <div class="stat-card">
-                <h3>Average Rating</h3>
+                <!-- <h3>Average Rating</h3>
                 <div class="value">4.8</div>
                 <div class="trend down">
                     <i class="fas fa-arrow-down"></i>
                     2% this month
-                </div>
+                </div> -->
             </div>
         </div>
 
         <div class="content-grid">
             <div class="card">
-                <div class="card-header">
+                <!-- <div class="card-header">
                     <h2 class="card-title">Recent Bookings</h2>
                     <a href="#" class="view-all">View All</a>
                 </div>
@@ -516,12 +640,12 @@ function getPendingPhotographers($conn) {
                             <td><span class="status active">Confirmed</span></td>
                         </tr>
                     </tbody>
-                </table>
+                </table> -->
             </div>
 
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">Top Photographers</h2>
+                    <!-- <h2 class="card-title">Top Photographers</h2>
                     <a href="#" class="view-all">View All</a>
                 </div>
                 <div class="photographer-list">
@@ -548,45 +672,22 @@ function getPendingPhotographers($conn) {
                             <p>Portrait Photography</p>
                         </div>
                         <div class="rating">4.7 ★</div>
-                    </div>
+                    </div>-->
                 </div>
             </div>
         </div>
-            <div class="card">
-        <div class="card-header">
-            <h2 class="card-title">Pending Photographer Approvals</h2>
+        <!-- Modal for viewing ID proof -->
+<div id="idProofModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closeModal()">&times;</span>
+        <div class="modal-header">
+            <h2>Photographer ID Proof</h2>
         </div>
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Location</th>
-                    <th>Categories</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php
-                $pending_photographers = getPendingPhotographers($conn);
-                while($row = $pending_photographers->fetch_assoc()) {
-                    echo "<tr>";
-                    echo "<td>{$row['name']}</td>";
-                    echo "<td>{$row['email']}</td>";
-                    echo "<td>{$row['phno']}</td>";
-                    echo "<td>{$row['location']}</td>";
-                    echo "<td>{$row['category']}</td>";
-                    echo "<td>
-                            <button onclick=\"approvePhotographer({$row['user_id']})\" class='approve-btn'>Approve</button>
-                            <button onclick=\"rejectPhotographer({$row['user_id']})\" class='reject-btn'>Reject</button>
-                        </td>";
-                    echo "</tr>";
-                }
-                ?>
-            </tbody>
-        </table>
+        <div class="modal-body" id="idProofContent">
+            <!-- Content will be loaded here -->
+        </div>
     </div>
+</div>
 </main>
 <script>
     
@@ -642,6 +743,45 @@ function updateStatus(id, status) {
 
     xhr.send("photographer_id=" + id + "&status=" + status);
 }
+// Add to your existing <script> section
+function viewIdProof(idProofPath) {
+    var modal = document.getElementById("idProofModal");
+    var contentArea = document.getElementById("idProofContent");
+    
+    if (!idProofPath) {
+        contentArea.innerHTML = "<p>No ID proof available</p>";
+        modal.style.display = "block";
+        return;
+    }
+    
+    // Determine the file type based on extension
+    var fileExtension = idProofPath.split('.').pop().toLowerCase();
+    
+    if (fileExtension === 'pdf') {
+        contentArea.innerHTML = `<object data="${idProofPath}" type="application/pdf" width="100%" height="500px">
+            <p>Your browser doesn't support PDFs. 
+            <a href="${idProofPath}" target="_blank">Download Instead</a></p>
+        </object>`;
+    } else if (['jpg', 'jpeg', 'png'].includes(fileExtension)) {
+        contentArea.innerHTML = `<img src="${idProofPath}" alt="Photographer ID Proof">`;
+    } else {
+        contentArea.innerHTML = `<p>Unsupported file type. <a href="${idProofPath}" target="_blank">Download Instead</a></p>`;
+    }
+    
+    modal.style.display = "block";
+}
+
+function closeModal() {
+    var modal = document.getElementById("idProofModal");
+    modal.style.display = "none";
+}
+
+window.onclick = function(event) {
+    var modal = document.getElementById("idProofModal");
+    if (event.target == modal) {
+        modal.style.display = "none";
+    }
+} 
 </script>
 </body>
 </html>

@@ -192,5 +192,55 @@ mysqli_close($conn);
         <p class="forgot-password"><a href="forgetpass.php">Forgot Password?</a></p>
         <p class="signup-link">New to LensPro? <a href="signup.php">Create Account</a></p>
     </form>
+    
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const emailInput = document.querySelector("input[name='email']");
+        const passwordInput = document.querySelector("input[name='password']");
+        const submitButton = document.querySelector(".submit");
+
+        function showError(input, message) {
+            let errorSpan = input.nextElementSibling;
+            if (!errorSpan || errorSpan.tagName !== "SPAN") {
+                errorSpan = document.createElement("span");
+                errorSpan.style.color = "red";
+                input.parentNode.insertBefore(errorSpan, input.nextSibling);
+            }
+            errorSpan.textContent = message;
+        }
+
+        function clearError(input) {
+            let errorSpan = input.nextElementSibling;
+            if (errorSpan && errorSpan.tagName === "SPAN") {
+                errorSpan.textContent = "";
+            }
+        }
+
+        emailInput.addEventListener("input", function() {
+            // RFC 5322 compliant email validation regex
+            const emailPattern = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+            if (!emailPattern.test(this.value)) {
+                showError(this, "*Please enter a valid email address");
+            } else {
+                clearError(this);
+            }
+        });
+
+        passwordInput.addEventListener("input", function() {
+            if (this.value.length < 8) {
+                showError(this, "*Password must be at least 8 characters");
+            } else {
+                clearError(this);
+            }
+        });
+
+        submitButton.addEventListener("click", function(event) {
+            if (document.querySelector("span")?.textContent !== "") {
+                event.preventDefault();
+                alert("Please fix the errors before submitting");
+            }
+        });
+    });
+    </script>
 </body>
 </html>

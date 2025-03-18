@@ -7,7 +7,7 @@ if ($_SESSION['role'] !== 'admin') {
     exit();
 }
 
-// Handle form submission for adding a new category
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_category'])) {
     $category_name = $_POST['category_name'];
     $description = $_POST['description'];
@@ -21,13 +21,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_category'])) {
     exit();
 }
 
-// Fetch all categories
+
 $categories = $conn->query("SELECT * FROM tbl_categories");
 
-// Handle delete request
-if (isset($_GET['delete'])) {
-    $id = $_GET['delete'];
-    $conn->query("DELETE FROM tbl_categories WHERE category_id = $id");
+
+// if (isset($_GET['delete'])) {
+//     $id = $_GET['delete'];
+//     $conn->query("DELETE FROM tbl_categories WHERE category_id = $id");
+//     header("Location: categories.php");
+//     exit();
+// }
+
+if (isset($_GET['toggle_status'])) {
+    $id = $_GET['toggle_status'];
+    
+    $result = $conn->query("SELECT status FROM tbl_categories WHERE category_id = $id");
+    $row = $result->fetch_assoc();
+    $new_status = $row['status'] ? 0 : 1;
+
+    $conn->query("UPDATE tbl_categories SET status = $new_status WHERE category_id = $id");
     header("Location: categories.php");
     exit();
 }
@@ -256,7 +268,7 @@ if (isset($_GET['delete'])) {
             gap: 0.5rem;
         }
 
-        .btn-edit, .btn-delete {
+        .btn-edit, .btn-delete, .btn-toggle {
             padding: 0.4rem 0.8rem;
             border-radius: 4px;
             font-size: 0.85rem;
@@ -271,6 +283,16 @@ if (isset($_GET['delete'])) {
 
         .btn-delete {
             background: var(--accent-color);
+            color: white;
+        }
+
+        .btn-toggle-active {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .btn-toggle-inactive {
+            background: var(--success-color);
             color: white;
         }
 
@@ -297,8 +319,12 @@ if (isset($_GET['delete'])) {
             <i class="fas fa-th-large"></i>
             Dashboard
         </a>
-        <a href="#" class="menu-item">
-            <i class="fas fa-users"></i>
+        <a href="adminviewusers.php" class="menu-item">
+            <i class="fas fa-user"></i>
+            Users
+        </a>
+        <a href="adminviewphotographer.php" class="menu-item">
+            <i class="fas fa-camera"></i>
             Photographers
         </a>
         <a href="#" class="menu-item">
@@ -313,20 +339,25 @@ if (isset($_GET['delete'])) {
             <i class="fas fa-star"></i>
             Reviews
         </a>
-        <a href="#" class="menu-item">
+        <!-- <a href="#" class="menu-item">
             <i class="fas fa-cog"></i>
             Settings
-        </a>
+        </a> -->
     </nav>
 
-    <header class="header">
+    <!-- <header class="header">
         <div class="search-bar">
             <i class="fas fa-search"></i>
             <input type="text" placeholder="Search categories...">
         </div>
-    </header>
+    </header> -->
 
     <main class="main-content">
+            <?php if (isset($_GET['update']) && $_GET['update'] == 'success'): ?>
+        <div class="alert alert-success" style="margin-bottom: 1rem; padding: 0.75rem 1.25rem; border-radius: 0.25rem; color: #155724; background-color: #d4edda; border: 1px solid #c3e6cb;">
+            Category updated successfully!
+        </div>
+        <?php endif; ?>
         <div class="category-form-card">
             <h2 class="form-title">Add New Category</h2>
             <form method="POST">
@@ -337,12 +368,6 @@ if (isset($_GET['delete'])) {
                 <div class="form-group">
                     <label for="description">Description</label>
                     <textarea id="description" name="description" class="form-control" required></textarea>
-                </div>
-                <div class="form-group">
-                    <!-- <div class="checkbox-wrapper">
-                        <input type="checkbox" id="status" name="status">
-                        <label for="status">Active</label>
-                    </div> -->
                 </div>
                 <button type="submit" name="add_category" class="btn btn-primary">Add Category</button>
             </form>
@@ -371,9 +396,13 @@ if (isset($_GET['delete'])) {
                         </td>
                         <td class="action-btns">
                             <a href="edit_category.php?id=<?= $row['category_id'] ?>" class="btn-edit">Edit</a>
-                            <a href="categories.php?delete=<?= $row['category_id'] ?>" 
+                            <a href="categories.php?toggle_status=<?= $row['category_id'] ?>" 
+                               class="btn-toggle <?= $row['status'] ? 'btn-toggle-active' : 'btn-toggle-inactive' ?>">
+                                <?= $row['status'] ? 'Deactivate' : 'Activate' ?>
+                            </a>
+                            <!-- <a href="categories.php?delete=<?= $row['category_id'] ?>" 
                                onclick="return confirm('Are you sure you want to delete this category?')" 
-                               class="btn-delete">Delete</a>
+                               class="btn-delete">Delete</a> -->
                         </td>
                     </tr>
                     <?php endwhile; ?>
@@ -383,7 +412,7 @@ if (isset($_GET['delete'])) {
     </main>
 
     <script>
-        // Add the dropdown toggle functionality from adminpanel.php
+        
         function toggleDropdown() {
             var menu = document.getElementById("dropdownMenu");
             menu.style.display = menu.style.display === "block" ? "none" : "block";

@@ -1,7 +1,15 @@
 <?php
 include 'dbconnect.php';
 
-$name = $email = $phno = $password = $location = $bio = $category = "";
+$categories = [];
+$cat_query = "SELECT * FROM tbl_categories ORDER BY category_name";
+$result = $conn->query($cat_query);
+if($result && $result->num_rows > 0) {
+    while($row = $result->fetch_assoc()) {
+        $categories[] = $row;
+    }
+}
+$name = $email = $phno = $password = $location = $bio = $category = $idproof_path = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $name = test_input($_POST["name"]);
@@ -11,24 +19,56 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $location = test_input($_POST["location"]);
     $bio = test_input($_POST["bio"]);
     
-    $category = isset($_POST["categories"]) ? implode(", ", $_POST["categories"]) : "";
+    $category_ids = isset($_POST["categories"]) ? $_POST["categories"] : [];
+    $category = implode(",", $category_ids);
     $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
+    // Handle file upload
+    if(isset($_FILES['idproof']) && $_FILES['idproof']['error'] == 0) {
+        $allowed = array('jpg', 'jpeg', 'png', 'pdf');
+        $filename = $_FILES['idproof']['name'];
+        $filetype = pathinfo($filename, PATHINFO_EXTENSION);
+        
+        if(in_array(strtolower($filetype), $allowed)) {
+            // Create unique filename
+            $new_filename = uniqid('idproof_') . '.' . $filetype;
+            $upload_dir = 'uploads/idproofs/';
+            
+            // Create directory if it doesn't exist
+            if (!file_exists($upload_dir)) {
+                mkdir($upload_dir, 0777, true);
+            }
+            
+            $upload_path = $upload_dir . $new_filename;
+            
+            if(move_uploaded_file($_FILES['idproof']['tmp_name'], $upload_path)) {
+                $idproof_path = $upload_path;
+            } else {
+                echo "Error uploading file.";
+                exit;
+            }
+        } else {
+            echo "Invalid file type. Please upload PDF, JPG or PNG files only.";
+            exit;
+        }
+    } else {
+        echo "Error: ID proof is required.";
+        exit;
+    }
    
     $stmt = $conn->prepare("INSERT INTO tbl_user (name, email, phno, password, status, role) VALUES (?, ?, ?, ?, ?, ?)");
-    $status = false; // Set to false for pending approval
+    $status = false; 
     $role = "photographer";
     $stmt->bind_param("ssssis", $name, $email, $phno, $hashed_password, $status, $role);
 
     if ($stmt->execute()) {
         $user_id = $stmt->insert_id;
 
-        $stmt2 = $conn->prepare("INSERT INTO tbl_photographer (photographer_id, bio, location, category, approval_status) VALUES (?, ?, ?, ?, ?)");
-        $approval_status = 'pending'; // Add approval status
-        $stmt2->bind_param("issss", $user_id, $bio, $location, $category, $approval_status);
+        $stmt2 = $conn->prepare("INSERT INTO tbl_photographer (photographer_id, bio, location, category, approval_status, id_proof) VALUES (?, ?, ?, ?, ?, ?)");
+        $approval_status = 'pending';
+        $stmt2->bind_param("isssss", $user_id, $bio, $location, $category, $approval_status, $idproof_path);
         
         if ($stmt2->execute()) {
-            
             header('location: pending_approval.php');
             exit;
         } else {
@@ -379,7 +419,7 @@ function test_input($data) {
     <div class="auth-container">
         <div class="auth-form" id="registerForm">
             <h2 class="form-title">Photographer Registration</h2>
-            <form action="photographerregis.php" method="POST">
+            <form action="photographerregis.php" method="POST" enctype="multipart/form-data">
             <div class="form-grid">
     <div class="form-group">
         <label for="name">Full Name</label>
@@ -410,22 +450,22 @@ function test_input($data) {
         <textarea id="bio" name="bio" rows="3" placeholder="Tell clients about yourself, your experience, and your style" required></textarea>
     </div>
     <div class="form-group full-width">
-        <label for="categories">Photography Categories (Hold Ctrl/Cmd to select multiple)</label>
-        <select id="categories" name="categories[]" multiple required>
-            <option value="portrait">Portrait Photography</option>
-            <option value="wedding">Wedding Photography</option>
-            <option value="commercial">Commercial Photography</option>
-            <option value="event">Event Photography</option>
-            <option value="nature">Nature Photography</option>
-            <option value="fashion">Fashion Photography</option>
-            <option value="food">Food Photography</option>
-            <option value="real-estate">Real Estate Photography</option>
-            <option value="sports">Sports Photography</option>
-            <option value="product">Product Photography</option>
-        </select>
-    </div>
+    <label for="categories">Photography Categories (Hold Ctrl/Cmd to select multiple)</label>
+    <select id="categories" name="categories[]" multiple required>
+        <?php foreach($categories as $category): ?>
+            <option value="<?php echo $category['category_name']; ?>"><?php echo $category['category_name']; ?></option>
+        <?php endforeach; ?>
+    </select>
 </div>
-                <button type="submit" class="submit-btn">Create Your Profile</button>
+
+    <div class="form-group full-width">
+    <label for="idproof">Any Photographer Association ID Proof</label>
+    <small>Upload a valid photographer association ID card or certificate (PDF, JPG, PNG formats only)</small>
+    <input type="file" id="idproof" name="idproof" accept=".pdf,.jpg,.jpeg,.png" required>
+    
+    </div>
+    </div>
+            <button type="submit" class="submit-btn">Create Your Profile</button>
             </form>
             <div class="toggle-form">
                 Already have an account? <a href="login.php">Login Here</a>
@@ -510,7 +550,7 @@ function test_input($data) {
     }
 
     function validateEmail(email) {
-        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const emailPattern = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
         return emailPattern.test(email) ? 
             clearError(emailInput) : 
             showError(emailInput, "*Please enter a valid email address");

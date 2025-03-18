@@ -7,7 +7,6 @@ if (!isset($_SESSION['userid'])) {
     exit();
 }
 
-// Get user data
 $user_id = $_SESSION['userid'];
 $sql = "SELECT * FROM tbl_user WHERE user_id = ?";
 $stmt = $conn->prepare($sql);
@@ -22,15 +21,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email']);
     $phone = trim($_POST['phone']);
     
-    // Validate inputs
+  
     $errors = [];
     if (empty($name)) $errors[] = "Name is required";
     if (empty($email)) $errors[] = "Email is required";
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Invalid email format";
     if (!preg_match("/^[6-9][0-9]{9}$/", $phone)) $errors[] = "Invalid phone number";
     
-    $profile_image = $user['profile_pic']; // Keep existing image by default
-    // In the file upload section:
+    $profile_image = $user['profile_pic']; 
+   
 if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] === UPLOAD_ERR_OK) {
     $allowed_types = ['image/jpeg', 'image/png'];
     $file_type = $_FILES['profile_image']['type'];
@@ -48,7 +47,7 @@ if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] === UPL
         $upload_path = $upload_dir . $new_filename;
         
         if (move_uploaded_file($_FILES['profile_image']['tmp_name'], $upload_path)) {
-            // Delete old profile image if it exists and is different from the new one
+            
             if (!empty($user['profile_pic']) && file_exists($user['profile_pic']) && $user['profile_pic'] !== $upload_path) {
                 unlink($user['profile_pic']);
             }
@@ -349,20 +348,19 @@ if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] === UPL
 
     <script>
         document.getElementById('editButton').addEventListener('click', function() {
-            // Enable form fields
+           
             document.querySelectorAll('input').forEach(input => {
                 input.disabled = false;
             });
             
-            // Show image upload section
+           
             document.getElementById('imageUploadWrapper').style.display = 'block';
             
-            // Show save button, hide edit button
+            
             this.style.display = 'none';
             document.getElementById('saveButton').style.display = 'block';
         });
 
-        // Image preview
         document.getElementById('profile_image').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {

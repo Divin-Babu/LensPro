@@ -80,6 +80,7 @@ $sql="CREATE TABLE IF NOT EXISTS tbl_gallery (
     title VARCHAR(50) NOT NULL,
     category_id INT,
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    description TEXT,
     status BOOLEAN DEFAULT TRUE,
     FOREIGN KEY (photographer_id) REFERENCES tbl_user(user_id) ON DELETE CASCADE,
     FOREIGN KEY (category_id) REFERENCES tbl_categories(category_id) ON DELETE SET NULL

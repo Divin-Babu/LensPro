@@ -18,7 +18,7 @@ try {
     }
 
     $image_id = intval($_POST['image_id']);
-
+ 
     $stmt = mysqli_prepare($conn, 
         "SELECT image_url FROM tbl_gallery 
          WHERE image_id = ? AND photographer_id = ? AND status = 1");

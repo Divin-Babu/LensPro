@@ -1,12 +1,32 @@
 <?php
 session_start();
 include 'dbconnect.php';
-$sql = "SELECT name, profile_pic, role FROM tbl_user WHERE user_id = ?";
-$stmt = mysqli_prepare($conn, $sql);
-mysqli_stmt_bind_param($stmt, "i", $_SESSION['userid']);
-mysqli_stmt_execute($stmt); 
-$result = mysqli_stmt_get_result($stmt);
-$row = mysqli_fetch_assoc($result);
+
+// Get user information if logged in
+$row = [];
+if (isset($_SESSION['userid'])) {
+    $sql = "SELECT name, profile_pic, role FROM tbl_user WHERE user_id = ?";
+    $stmt = mysqli_prepare($conn, $sql);
+    mysqli_stmt_bind_param($stmt, "i", $_SESSION['userid']);
+    mysqli_stmt_execute($stmt); 
+    $result = mysqli_stmt_get_result($stmt);
+    $row = mysqli_fetch_assoc($result);
+}
+
+// Fetch photographers from database (limit to 8 random photographers)
+$photographerQuery = "SELECT u.user_id, u.name, u.profile_pic, p.bio, p.location 
+                     FROM tbl_user u 
+                     JOIN tbl_photographer p ON u.user_id = p.photographer_id 
+                     WHERE u.role = 'photographer' AND u.status = TRUE
+                     ORDER BY RAND() 
+                     LIMIT 8";
+$photographerResult = mysqli_query($conn, $photographerQuery);
+$photographers = [];
+if ($photographerResult) {
+    while ($photographerRow = mysqli_fetch_assoc($photographerResult)) {
+        $photographers[] = $photographerRow;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -226,6 +246,11 @@ $row = mysqli_fetch_assoc($result);
             animation: fadeIn 1.5s ease-out;
         }
 
+            a.cta-button, 
+            .photographer-info a.cta-button {
+                text-decoration: none;
+        }
+
         .cta-button {
             background: var(--secondary-color);
             color: white;
@@ -235,6 +260,13 @@ $row = mysqli_fetch_assoc($result);
             font-size: 1.1rem;
             cursor: pointer;
             transition: background 0.3s;
+            text-decoration: none; 
+            display: inline-block;
+            
+        }
+        .cta-button a{
+            text-decoration:none;
+            color:white;
         }
 
         .cta-button:hover {
@@ -328,7 +360,7 @@ $row = mysqli_fetch_assoc($result);
         }
 
         .booking {
-            padding: 5rem 5%;
+            padding: 2rem 5%;
             background: var(--light-gray);
         }
 
@@ -466,36 +498,74 @@ $row = mysqli_fetch_assoc($result);
         <div class="hero-content">
             <h1>Capture Your Perfect Moment</h1>
             <p>Connect with professional photographers for your special occasions</p>
-            <button class="cta-button">Explore Photographers</button>
+            <button class="cta-button"><a href="photographers.php">Explore Photographers</a></button>
         </div>
     </section>
 
     <section class="photographers" id="photographers">
-        <h2 class="section-title">Our Professional Photographers</h2>
-        <div class="photographer-grid" id="photographerGrid"></div>
-    </section>
+    <h2 class="section-title">Our Professional Photographers</h2>
+    <div class="photographer-grid">
+        <?php if (!empty($photographers)): ?>
+            <?php foreach ($photographers as $photographer): ?>
+                <div class="photographer-card">
+                    <?php if (!empty($photographer['profile_pic'])): ?>
+                        <img src="<?php echo htmlspecialchars($photographer['profile_pic']); ?>" alt="<?php echo htmlspecialchars($photographer['name']); ?>" class="photographer-img">
+                    <?php else: ?>
+                        <img src="images/default-photographer.jpg" alt="<?php echo htmlspecialchars($photographer['name']); ?>" class="photographer-img">
+                    <?php endif; ?>
+                    <div class="photographer-info">
+                        <h3><?php echo htmlspecialchars($photographer['name']); ?></h3>
+                        <p><?php echo htmlspecialchars(substr($photographer['bio'], 0, 100) . (strlen($photographer['bio']) > 100 ? '...' : '')); ?></p>
+                        <p><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($photographer['location']); ?></p>
+                        <div class="rating">
+                            <?php
+                            // Placeholder for rating - in a real app, you'd calculate this from a ratings table
+                            $rating = 4.5; // Example rating
+                            echo str_repeat('★', floor($rating));
+                            echo ($rating - floor($rating) >= 0.5) ? '½' : '';
+                            echo str_repeat('☆', 5 - ceil($rating));
+                            ?>
+                            <span>(<?php echo $rating; ?>)</span>
+                        </div>
+                        <a href="photographer-profileview.php?id=<?php echo $photographer['user_id']; ?>" class="cta-button">View Profile</a>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <p class="no-photographers">No photographers found. Check back later!</p>
+        <?php endif; ?>
+    </div>
+    
+    <!-- Add Explore More button -->
+    <div style="text-align: center; margin-top: 3rem;">
+        <a href="photographers.php" class="cta-button">Explore More Photographers</a>
+    </div>
+</section>
 
     <section class="booking" id="booking">
         <h2 class="section-title">Book Your Session</h2>
         <div class="booking-container">
-            <form class="booking-form">
+            <form class="booking-form" action="process-booking.php" method="post">
                 <div class="form-group">
                     <label for="photographer">Select Photographer</label>
-                    <select id="photographer" required>
+                    <select id="photographer" name="photographer_id" required>
                         <option value="">Choose a photographer</option>
+                        <?php foreach ($photographers as $photographer): ?>
+                            <option value="<?php echo $photographer['user_id']; ?>"><?php echo htmlspecialchars($photographer['name']); ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="form-group">
                     <label for="date">Preferred Date</label>
-                    <input type="date" id="date" required>
+                    <input type="date" id="date" name="booking_date" required min="<?php echo date('Y-m-d'); ?>">
                 </div>
                 <div class="form-group">
                     <label for="time">Preferred Time</label>
-                    <input type="time" id="time" required>
+                    <input type="time" id="time" name="booking_time" required>
                 </div>
                 <div class="form-group">
                     <label for="type">Session Type</label>
-                    <select id="type" required>
+                    <select id="type" name="session_type" required>
                         <option value="">Select session type</option>
                         <option value="portrait">Portrait</option>
                         <option value="wedding">Wedding</option>
@@ -503,10 +573,14 @@ $row = mysqli_fetch_assoc($result);
                         <option value="commercial">Commercial</option>
                     </select>
                 </div>
-                <button type="submit" class="cta-button">Book Now</button>
+                <?php if (isset($_SESSION['userid'])): ?>
+                    <button type="submit" class="cta-button">Book Now</button>
+                <?php else: ?>
+                    <a href="login.php" class="cta-button">Login to Book</a>
+                <?php endif; ?>
             </form>
             <div class="booking-image">
-                <img src="images/illusimg.png" alt="">
+                <img src="images/illusimg.png" alt="Booking illustration">
             </div>
         </div>
     </section>
@@ -521,48 +595,6 @@ $row = mysqli_fetch_assoc($result);
     </footer>
 
     <script>
-        const photographers = [
-            { name: "Bruno Andrews", specialty: "Portrait & Wedding Photography", rating: 4.8, image: "images/pgimg1.jpg" },
-            { name: "Anna Warner", specialty: "Commercial Photography", rating: 4.9, image: "images/pgimg2.jpg" },
-            { name: "Emma Williams", specialty: "Nature & Wildlife Photography", rating: 4.7, image: "images/pgimg3.jpg" },
-            { name: "David Lee", specialty: "Advertising Photography", rating: 4.6, image: "images/pgimg4.png" },
-            { name: "Oliver Smith", specialty: "Fashion & Editorial Photography", rating: 4.9, image: "images/pgimg5.jpg" },
-            { name: "Johnson Junior", specialty: "Event & Corporate Photography", rating: 4.5, image: "images/pgimg6.jpg" },
-            { name: "Tom Williamson", specialty: "Fine Art Photography", rating: 4.8, image: "images/pgimg7.jpg" },
-            { name: "Sarah Johnson", specialty: "Sports & Action Photography", rating: 4.7, image: "images/pgimg8.jpg" }
-        ];
-
-        const photographerGrid = document.getElementById('photographerGrid');
-        const photographerSelect = document.getElementById('photographer');
-
-        photographers.forEach(photographer => {
-            const card = document.createElement('div');
-            card.className = 'photographer-card';
-            card.innerHTML = `
-                <img src="${photographer.image}" alt="${photographer.name}" class="photographer-img">
-                <div class="photographer-info">
-                    <h3>${photographer.name}</h3>
-                    <p>${photographer.specialty}</p>
-                    <div class="rating">
-                        ${'★'.repeat(Math.floor(photographer.rating))}${photographer.rating % 1 !== 0 ? '½' : ''}${'☆'.repeat(5 - Math.ceil(photographer.rating))}
-                        <span>(${photographer.rating})</span>
-                    </div>
-                    <button class="cta-button">View Profile</button>
-                </div>
-            `;
-            photographerGrid.appendChild(card);
-
-            const option = document.createElement('option');
-            option.value = photographer.name.toLowerCase().replace(' ', '-');
-            option.textContent = photographer.name;
-            photographerSelect.appendChild(option);
-        });
-
-        document.querySelector('.booking-form').addEventListener('submit', function (e) {
-            e.preventDefault();
-            alert('Booking submitted! We will contact you shortly to confirm your appointment.');
-        });
-
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
                 e.preventDefault();
@@ -571,8 +603,6 @@ $row = mysqli_fetch_assoc($result);
                 });
             });
         });
-
-        
     </script>
 
 </body>

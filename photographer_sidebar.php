@@ -5,10 +5,10 @@ $current_page = basename($_SERVER['PHP_SELF']);
 
 <div class="sidebar">
     <div class="logo-container">
-        <a href="index.php" class="logo">
+        <div class="logo">
             <img src="images/logowithoutname.png" alt="LensPro Logo">
             <span>LensPro</span>
-        </a>
+        </div>
     </div>
     <ul class="nav-links">
         <li>
@@ -36,9 +36,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </a>
         </li>
         <li>
-            <a href="#" class="<?php echo $current_page == 'settings.php' ? 'active' : ''; ?>">
-                <i class="fas fa-cog"></i>
-                <span>Settings</span>
+            <a href="photographerprofile.php" class="<?php echo $current_page == 'photographerprofile.php' ? 'active' : ''; ?>">
+                <i class="fas fa-user"></i>
+                <span>Profile</span>
             </a>
         </li>
         <li>

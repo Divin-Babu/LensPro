@@ -2,7 +2,6 @@
 session_start();
 include 'dbconnect.php';
 
-// Check if user is logged in and is a photographer
 if (!isset($_SESSION['userid']) || $_SESSION['role'] !== 'photographer') {
     header('Location: login.php');
     exit();
@@ -18,7 +17,7 @@ if (isset($_SESSION['error'])) {
 }
 $photographer_id = $_SESSION['userid'];
 
-// Fetch photographer's gallery images
+
 $stmt = mysqli_prepare($conn, "SELECT g.*, c.category_name 
                              FROM tbl_gallery g 
                              LEFT JOIN tbl_categories c ON g.category_id = c.category_id 
@@ -28,7 +27,6 @@ mysqli_stmt_bind_param($stmt, "i", $photographer_id);
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 
-// Fetch categories for dropdown
 $categories_query = "SELECT * FROM tbl_categories WHERE status = 1";
 $categories_result = mysqli_query($conn, $categories_query);
 ?>
@@ -152,6 +150,7 @@ $categories_result = mysqli_query($conn, $categories_query);
             cursor: pointer;
             font-size: 14px;
             transition: background 0.3s;
+            margin-top:20px;
         }
 
         .edit-btn {
@@ -259,7 +258,7 @@ $categories_result = mysqli_query($conn, $categories_query);
             border: 1px solid #f5c6cb;
         }
 
-        /* Responsive Design */
+       
         @media (max-width: 768px) {
             .main-content {
                 margin-left: 70px;
@@ -292,9 +291,10 @@ $categories_result = mysqli_query($conn, $categories_query);
                             <div class="gallery-category">
                                 <i class="fas fa-tag"></i> <?php echo htmlspecialchars($row['category_name']); ?>
                             </div>
+                            <p class="gallery-description"><?php echo htmlspecialchars($row['description']); ?></p>
                             <div class="gallery-actions">
                                 <button class="action-btn edit-btn" onclick="openEditModal(<?php echo $row['image_id']; ?>)">
-                                    <i class="fas fa-edit"></i> Edit
+                                    <i class="fas fa-edit"></i> Edit Details
                                 </button>
                                 <button class="action-btn delete-btn" onclick="deleteImage(<?php echo $row['image_id']; ?>)">
                                     <i class="fas fa-trash"></i> Delete
@@ -307,7 +307,7 @@ $categories_result = mysqli_query($conn, $categories_query);
         </div>
     </div>
 
-    <!-- Add Image Modal -->
+    
     <div id="addModal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal('addModal')">&times;</span>
@@ -331,6 +331,10 @@ $categories_result = mysqli_query($conn, $categories_query);
                         <?php endwhile; ?>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description"></textarea>
+                </div>
                 <button type="submit" class="submit-btn">Upload Image</button>
             </form>
         </div>
@@ -346,13 +350,12 @@ $categories_result = mysqli_query($conn, $categories_query);
     }
 
     function openEditModal(imageId) {
-        // Implement edit functionality
-        alert('Edit functionality to be implemented');
-    }
+    window.location.href = 'edit_gallery_imgdetails.php?id=' + imageId;
+}
 
     function deleteImage(imageId) {
         if (confirm('Are you sure you want to delete this image?')) {
-            // Create and submit a form for deletion
+
             const form = document.createElement('form');
             form.method = 'POST';
             form.action = 'delete_image.php';
@@ -367,7 +370,7 @@ $categories_result = mysqli_query($conn, $categories_query);
             form.submit();
         }
     }
-    // Close modal when clicking outside
+
     window.onclick = function(event) {
         if (event.target.className === 'modal') {
             event.target.style.display = 'none';

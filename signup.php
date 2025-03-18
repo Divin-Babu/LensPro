@@ -1,21 +1,81 @@
 <?php
 include 'dbconnect.php';
 $name = $email = $phno = $password = $reppass = "";
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
+$name_err = $email_err = $phno_err = $password_err = $reppass_err = "";
+$form_valid = true;
+
+// Check if this is an AJAX request to validate email
+if(isset($_POST['check_email'])) {
+    $email = test_input($_POST['check_email']);
+    
+    
+    $check_sql = "SELECT * FROM tbl_user WHERE email = '$email'";
+    $result = mysqli_query($conn, $check_sql);
+    
+    if(mysqli_num_rows($result) > 0) {
+        echo "exists";
+    } else {
+        echo "not_exists";
+    }
+    exit;
+}
+
+if ($_SERVER["REQUEST_METHOD"] == "POST" && !isset($_POST['check_email'])) {
+    // Validate name
     $name = test_input($_POST["name"]);
+    if (!preg_match("/^[a-zA-Z-' ]+$/", $name)) {
+        $name_err = "*Only letters and white space allowed";
+        $form_valid = false;
+    }
+    
+    // Validate email
     $email = test_input($_POST["email"]);
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $email_err = "*Please enter a valid email address";
+        $form_valid = false;
+    } else {
+        // Check if email already exists
+        $check_sql = "SELECT * FROM tbl_user WHERE email = '$email'";
+        $result = mysqli_query($conn, $check_sql);
+        
+        if(mysqli_num_rows($result) > 0) {
+            $email_err = "*Email already exists. Please try login</a>";
+            $form_valid = false;
+        }
+    }
+    
+    // Validate phone number
     $phno = test_input($_POST["phno"]);
+    if (!preg_match("/^[6-9][0-9]{9}$/", $phno)) {
+        $phno_err = "*Invalid mobile number, must be 10 digits";
+        $form_valid = false;
+    }
+    
+    // Validate password
     $password = test_input($_POST["password"]);
+    if (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%?&]{8,}$/", $password)) {
+        $password_err = "*Password must have atleast 8 characters with uppercase, lowercase, and a number.";
+        $form_valid = false;
+    }
+    
+    // Validate repeated password
     $reppass = test_input($_POST["repeatpassword"]);
+    if ($reppass != $password) {
+        $reppass_err = "*Password not matching";
+        $form_valid = false;
+    }
+    
+    // If form is valid, proceed with database insertion
+    if ($form_valid) {
         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
         $sql = "INSERT INTO tbl_user (name, email, phno, password, status, role) VALUES ('$name', '$email', '$phno', '$hashed_password', TRUE, 'user')";
         if (mysqli_query($conn, $sql)) {
             header('location:login.php'); 
             exit;
         } else {
-            
             echo "Error: " . mysqli_error($conn);
         }
+    }
     mysqli_close($conn);
 }
 
@@ -139,26 +199,27 @@ function test_input($data) {
 </head>
 <body>
     <a href="index.php"> <img src="images/lenspro.png" alt="LensPro Logo"></a>
-    <form class="form" action="signup.php" method="POST">
+    <form class="form" action="signup.php" method="POST" onsubmit="return validateForm()">
        <p class="form-title">Create Account</p>
         <div class="input-container">
-          <input type="text" placeholder="Your Name" name="name" required><br>
-          <span style="color:red;"></span>
+          <input type="text" placeholder="Your Name" name="name" value="<?php echo $name; ?>" required>
+          <span style="color:red;"><?php echo $name_err; ?></span>
         </div>
       <div class="input-container">
-          <input type="email" placeholder="Your Email" name="email" required>
+          <input type="email" placeholder="Your Email" name="email" id="email" value="<?php echo $email; ?>" required>
+          <span style="color:red;" id="email_error"><?php echo $email_err; ?></span>
         </div>
         <div class="input-container">
-            <input type="text" placeholder="Phone Number" name="phno" required><br>
-            <span style="color:red;"></span>
+            <input type="text" placeholder="Phone Number" name="phno" value="<?php echo $phno; ?>" required>
+            <span style="color:red;"><?php echo $phno_err; ?></span>
           </div>
       <div class="input-container">
-        <input type="password" placeholder="Password" name="password" required><br>
-        <span style="color:red;"></span>
+        <input type="password" placeholder="Password" name="password" required>
+        <span style="color:red;"><?php echo $password_err; ?></span>
         </div>
         <div class="input-container">
-            <input type="password" placeholder="Repeat Password" name="repeatpassword" required><br>
-            <span style="color:red;"></span>
+            <input type="password" placeholder="Repeat Password" name="repeatpassword" required>
+            <span style="color:red;"><?php echo $reppass_err; ?></span>
             </div>
          <button type="submit" class="submit">
         Signup
@@ -176,7 +237,6 @@ function test_input($data) {
     const phnoInput = document.querySelector("input[name='phno']");
     const passwordInput = document.querySelector("input[name='password']");
     const repeatPasswordInput = document.querySelector("input[name='repeatpassword']");
-    const submitButton = document.querySelector(".submit");
 
     function showError(input, message) {
       let errorSpan = input.nextElementSibling;
@@ -195,6 +255,7 @@ function test_input($data) {
       }
     }
 
+  
     nameInput.addEventListener("input", function() {
       const namePattern = /^[a-zA-Z-' ]+$/;
       if (!namePattern.test(this.value)) {
@@ -203,6 +264,44 @@ function test_input($data) {
         clearError(this);
       }
     });
+
+    emailInput.addEventListener("input", function() {
+      const emailPattern = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+      if (!emailPattern.test(this.value)) {
+        showError(this, "*Please enter a valid email address");
+      } else {
+        clearError(this);
+        // Check if email exists in database
+        checkEmailExists(this.value);
+      }
+    });
+
+    // Function to check if email exists using AJAX
+    function checkEmailExists(email) {
+      if (!email) return;
+      
+      
+      const formData = new FormData();
+      formData.append('check_email', email);
+      
+      
+      fetch('signup.php', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.text())
+      .then(data => {
+        const emailErrorSpan = document.getElementById('email_error');
+        if (data === 'exists') {
+          emailErrorSpan.innerHTML = "*Email already exists. Please try login";
+        } else {
+          emailErrorSpan.textContent = "";
+        }
+      })
+      .catch(error => {
+        console.error('Error checking email:', error);
+      });
+    }
 
     phnoInput.addEventListener("input", function() {
       const phnoPattern = /^[6-9][0-9]{9}$/;
@@ -229,16 +328,59 @@ function test_input($data) {
         clearError(this);
       }
     });
-
-    submitButton.addEventListener("click", function(event) {
-      if (
-        document.querySelector("span")?.textContent !== "" 
-      ) {
-        event.preventDefault();
-        alert("Please fix the errors before submitting");
-      }
-    });
   });
+
+
+  function validateForm() {
+    const nameInput = document.querySelector("input[name='name']");
+    const emailInput = document.querySelector("input[name='email']");
+    const phnoInput = document.querySelector("input[name='phno']");
+    const passwordInput = document.querySelector("input[name='password']");
+    const repeatPasswordInput = document.querySelector("input[name='repeatpassword']");
+    const emailErrorSpan = document.getElementById('email_error');
+    
+    let isValid = true;
+    
+   
+    const namePattern = /^[a-zA-Z-' ]+$/;
+    if (!namePattern.test(nameInput.value)) {
+      isValid = false;
+    }
+    
+  
+    const emailPattern = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    if (!emailPattern.test(emailInput.value)) {
+      isValid = false;
+    }
+    
+    // Check if there's an email error message about existing email
+    if (emailErrorSpan.textContent.includes("already exists")) {
+      isValid = false;
+    }
+
+    const phnoPattern = /^[6-9][0-9]{9}$/;
+    if (!phnoPattern.test(phnoInput.value)) {
+      isValid = false;
+    }
+    
+  
+    const passPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%?&]{8,}$/;
+    if (!passPattern.test(passwordInput.value)) {
+      isValid = false;
+    }
+    
+  
+    if (repeatPasswordInput.value !== passwordInput.value) {
+      isValid = false;
+    }
+    
+    
+    if (!isValid) {
+      alert("Please fix the errors before submitting");
+    }
+    
+    return isValid;
+  }
 </script>
 
 </body>
