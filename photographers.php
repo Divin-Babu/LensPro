@@ -1,12 +1,33 @@
 <?php
-//session_start();
+session_start();
 include 'dbconnect.php';
-// $sql = "SELECT name, profile_pic, role FROM tbl_user WHERE user_id = ?";
-// $stmt = mysqli_prepare($conn, $sql);
-// mysqli_stmt_bind_param($stmt, "i", $_SESSION['userid'] ?? 0);
-// mysqli_stmt_execute($stmt); 
-// $result = mysqli_stmt_get_result($stmt);
-// $row = mysqli_fetch_assoc($result);
+
+// Get user information if logged in
+$user_info = [];
+if (isset($_SESSION['userid'])) {
+    $sql = "SELECT name, profile_pic, role FROM tbl_user WHERE user_id = ?";
+    $stmt = mysqli_prepare($conn, $sql);
+    mysqli_stmt_bind_param($stmt, "i", $_SESSION['userid']);
+    mysqli_stmt_execute($stmt); 
+    $result = mysqli_stmt_get_result($stmt);
+    $user_info = mysqli_fetch_assoc($result);
+}
+
+// Fetch all photographers from database by joining tbl_user and tbl_photographer tables
+$photographers_query = "SELECT u.user_id, u.name, u.profile_pic, p.bio, p.location, 
+                       (SELECT COUNT(*) FROM tbl_gallery WHERE photographer_id = u.user_id) as photo_count
+                       FROM tbl_user u 
+                       JOIN tbl_photographer p ON u.user_id = p.photographer_id 
+                       WHERE u.role = 'photographer' AND u.status = TRUE";
+$photographers_result = mysqli_query($conn, $photographers_query);
+
+// Get all categories for filters
+$categories_query = "SELECT category_id, category_name FROM tbl_categories WHERE status = TRUE";
+$categories_result = mysqli_query($conn, $categories_query);
+
+// Get all unique locations from photographers
+$locations_query = "SELECT DISTINCT location FROM tbl_photographer";
+$locations_result = mysqli_query($conn, $locations_query);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -471,6 +492,15 @@ include 'dbconnect.php';
             color: var(--secondary-color);
         }
 
+        .no-results {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 2rem;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
         @media (max-width: 992px) {
             .main-container {
                 flex-direction: column;
@@ -518,21 +548,21 @@ include 'dbconnect.php';
             <?php else: ?>
                 <a href="photographerregis.php">Become A Photographer</a>
             <?php endif; ?>
-            <a href="index.php#booking">Book Now</a>
-            <?php if (isset($_SESSION['userid']) && $row['role']=='user'): ?>
+            <a href="booking.php">Book Now</a>
+            <?php if (isset($_SESSION['userid']) && isset($user_info['role']) && $user_info['role'] == 'user'): ?>
                 <div class="user-profile">
                     <div class="profile-photo">
-                        <?php if (isset($row['profile_pic'])): ?>
-                            <img src="<?php echo htmlspecialchars($row['profile_pic']); ?>" alt="">
+                        <?php if (isset($user_info['profile_pic']) && $user_info['profile_pic']): ?>
+                            <img src="<?php echo htmlspecialchars($user_info['profile_pic']); ?>" alt="">
                         <?php else: ?>
                             <i class="fas fa-user-circle"></i>
                         <?php endif; ?>
                     </div>
-                    <span class="username"><?php echo htmlspecialchars($row['name']); ?></span>
+                    <span class="username"><?php echo htmlspecialchars($user_info['name']); ?></span>
                     <i class="fas fa-chevron-down"></i>
                     <div class="dropdown-content">
                         <a href="userprofile.php"><i class="fas fa-user"></i> My Profile</a>
-                        <a href="my-bookings.php"><i class="fas fa-calendar-check"></i> My Bookings</a>
+                        <a href="my-booking.php"><i class="fas fa-calendar-check"></i> My Bookings</a>
                         <div class="dropdown-divider"></div>
                         <a href="logout.php" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
                     </div>
@@ -555,56 +585,32 @@ include 'dbconnect.php';
             <div class="filter-group">
                 <h3 class="expanded">Location <i class="fas fa-chevron-down"></i></h3>
                 <div class="filter-options">
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="location-mumbai" name="location" value="Mumbai">
-                        <label for="location-mumbai">Mumbai</label>
-                    </div>
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="location-delhi" name="location" value="Delhi">
-                        <label for="location-delhi">Delhi</label>
-                    </div>
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="location-bangalore" name="location" value="Bangalore">
-                        <label for="location-bangalore">Bangalore</label>
-                    </div>
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="location-chennai" name="location" value="Chennai">
-                        <label for="location-chennai">Chennai</label>
-                    </div>
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="location-hyderabad" name="location" value="Hyderabad">
-                        <label for="location-hyderabad">Hyderabad</label>
-                    </div>
+                    <?php
+                    while ($location = mysqli_fetch_assoc($locations_result)) {
+                        $location_name = htmlspecialchars($location['location']);
+                        $location_id = str_replace(' ', '-', strtolower($location_name));
+                        echo '<div class="checkbox-option">
+                                <input type="checkbox" id="location-'.$location_id.'" name="location" value="'.$location_name.'">
+                                <label for="location-'.$location_id.'">'.$location_name.'</label>
+                              </div>';
+                    }
+                    ?>
                 </div>
             </div>
 
             <div class="filter-group">
                 <h3>Category <i class="fas fa-chevron-down"></i></h3>
                 <div class="filter-options" style="display: none;">
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="category-wedding" name="category" value="Wedding">
-                        <label for="category-wedding">Wedding</label>
-                    </div>
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="category-portrait" name="category" value="Portrait">
-                        <label for="category-portrait">Portrait</label>
-                    </div>
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="category-commercial" name="category" value="Commercial">
-                        <label for="category-commercial">Commercial</label>
-                    </div>
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="category-event" name="category" value="Event">
-                        <label for="category-event">Event</label>
-                    </div>
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="category-fashion" name="category" value="Fashion">
-                        <label for="category-fashion">Fashion & Editorial</label>
-                    </div>
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="category-nature" name="category" value="Nature">
-                        <label for="category-nature">Nature & Wildlife</label>
-                    </div>
+                    <?php
+                    while ($category = mysqli_fetch_assoc($categories_result)) {
+                        $category_name = htmlspecialchars($category['category_name']);
+                        $category_id = $category['category_id'];
+                        echo '<div class="checkbox-option">
+                                <input type="checkbox" id="category-'.$category_id.'" name="category" value="'.$category_name.'">
+                                <label for="category-'.$category_id.'">'.$category_name.'</label>
+                              </div>';
+                    }
+                    ?>
                 </div>
             </div>
 
@@ -634,403 +640,230 @@ include 'dbconnect.php';
                 </div>
             </div>
 
-            <div class="filter-group">
-                <h3>Rating <i class="fas fa-chevron-down"></i></h3>
-                <div class="filter-options" style="display: none;">
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="rating-5" name="rating" value="5">
-                        <label for="rating-5">5 Stars</label>
-                    </div>
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="rating-4" name="rating" value="4">
-                        <label for="rating-4">4 Stars & Above</label>
-                    </div>
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="rating-3" name="rating" value="3">
-                        <label for="rating-3">3 Stars & Above</label>
-                    </div>
-                </div>
-            </div>
-
-            <div class="filter-group">
-                <h3>Experience <i class="fas fa-chevron-down"></i></h3>
-                <div class="filter-options" style="display: none;">
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="exp-1" name="experience" value="0-2">
-                        <label for="exp-1">0 - 2 Years</label>
-                    </div>
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="exp-2" name="experience" value="2-5">
-                        <label for="exp-2">2 - 5 Years</label>
-                    </div>
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="exp-3" name="experience" value="5-10">
-                        <label for="exp-3">5 - 10 Years</label>
-                    </div>
-                    <div class="checkbox-option">
-                        <input type="checkbox" id="exp-4" name="experience" value="10+">
-                        <label for="exp-4">10+ Years</label>
-                    </div>
-                </div>
-            </div>
-
             <button class="clear-filter" id="clearFilter">Clear All Filters</button>
         </div>
 
         <!-- Photographers listing -->
         <div class="photographers-container">
             <div class="search-results">
-                <div class="results-count"><span id="totalResults">8</span> photographers found</div>
+                <div class="results-count"><span id="totalResults">
+                    <?php echo mysqli_num_rows($photographers_result); ?>
+                </span> photographers found</div>
                 <div class="sort-options">
                     <label for="sort-by">Sort by:</label>
                     <select id="sort-by">
-                        <option value="popularity">Popularity</option>
-                        <option value="rating-high">Rating (High to Low)</option>
-                        <option value="rating-low">Rating (Low to High)</option>
-                        <option value="price-low">Price (Low to High)</option>
-                        <option value="price-high">Price (High to Low)</option>
+                        <option value="name">Name</option>
+                        <option value="location">Location</option>
+                        <option value="photo_count">Portfolio Size</option>
                     </select>
                 </div>
             </div>
 
             <div class="photographer-grid" id="photographerGrid">
-                <!-- Photographer cards will be populated here by JavaScript -->
+                <?php
+                if (mysqli_num_rows($photographers_result) > 0) {
+                    while ($photographer = mysqli_fetch_assoc($photographers_result)) {
+                        // Get random rating between 4.0 and 5.0 for demo purposes (would be real data in production)
+                        $rating = number_format(rand(40, 50) / 10, 1);
+                        
+                        // Get random starting price between 2000 and 15000 (would be real data in production)
+                        $price = rand(2, 15) * 1000;
+                        
+                        // Generate profile image path (use actual profile_pic if available)
+                        $image_path = $photographer['profile_pic'] ? htmlspecialchars($photographer['profile_pic']) :htmlspecialchars($photographer['name']);
+                        
+                        // Short bio or specialty
+                        $bio = htmlspecialchars(substr($photographer['bio'], 0, 100)) . '...';
+                        
+                        echo '<div class="photographer-card" data-name="'.htmlspecialchars($photographer['name']).'" 
+                             data-location="'.htmlspecialchars($photographer['location']).'" 
+                             data-photo-count="'.$photographer['photo_count'].'">
+                                <img src="'.$image_path.'" alt="'.htmlspecialchars($photographer['name']).'" class="photographer-img">
+                                <div class="photographer-info">
+                                    <h3>'.htmlspecialchars($photographer['name']).'</h3>
+                                    <div class="photographer-meta">
+                                        <i class="fas fa-map-marker-alt"></i>
+                                        <span>'.htmlspecialchars($photographer['location']).'</span>
+                                        <i class="fas fa-image"></i>
+                                        <span>'.$photographer['photo_count'].' Photos</span>
+                                    </div>
+                                    <p>'.$bio.'</p>
+                                    <div class="rating">';
+                                    
+                        // Generate star rating display
+                        $full_stars = floor($rating);
+                        $half_star = ($rating - $full_stars) >= 0.5;
+                        
+                        for ($i = 1; $i <= 5; $i++) {
+                            if ($i <= $full_stars) {
+                                echo '★';
+                            } elseif ($half_star && $i == $full_stars + 1) {
+                                echo '½';
+                                $half_star = false;
+                            } else {
+                                echo '☆';
+                            }
+                        }
+                        
+                        echo '      <span>('.$rating.')</span>
+                                    </div>
+                                    <div class="price-range">
+                                        <span class="starting-price">Starting from ₹'.$price.'</span>
+                                    </div>
+                                    <a href="photographer-profileview.php?id='.$photographer['user_id'].'" class="view-profile">View Profile</a>
+                                </div>
+                            </div>';
+                    }
+                } else {
+                    echo '<div class="no-results">No photographers found in the database.</div>';
+                }
+                ?>
             </div>
 
-            <div class="pagination">
+            <!-- Pagination will be controlled by JavaScript in real implementation -->
+            <!-- <div class="pagination">
                 <a href="#" class="active">1</a>
                 <a href="#">2</a>
                 <a href="#">3</a>
                 <a href="#"><i class="fas fa-angle-right"></i></a>
-            </div>
+            </div> -->
         </div>
     </div>
 
     <footer>
         <p>&copy; 2025 LensPro. All rights reserved.</p>
-        <div class="social-links">
+        <!-- <div class="social-links">
             <a href="#"><i class="fab fa-facebook"></i></a>
             <a href="#"><i class="fab fa-instagram"></i></a>
             <a href="#"><i class="fab fa-twitter"></i></a>
-        </div>
+        </div> -->
     </footer>
 
     <script>
-        // Sample data for photographers
-        const photographers = [
-            {
-                name: "Bruno Andrews",
-                specialty: "Portrait & Wedding Photography",
-                location: "Mumbai",
-                category: ["Wedding", "Portrait"],
-                rating: 4.8,
-                price: 5000,
-                experience: 7,
-                image: "images/pgimg1.jpg"
-            },
-            {
-                name: "Anna Warner",
-                specialty: "Commercial Photography",
-                location: "Delhi",
-                category: ["Commercial", "Event"],
-                rating: 4.9,
-                price: 8000,
-                experience: 10,
-                image: "images/pgimg2.jpg"
-            },
-            {
-                name: "Emma Williams",
-                specialty: "Nature & Wildlife Photography",
-                location: "Bangalore",
-                category: ["Nature", "Portrait"],
-                rating: 4.7,
-                price: 3500,
-                experience: 5,
-                image: "images/pgimg3.jpg"
-            },
-            {
-                name: "David Lee",
-                specialty: "Advertising Photography",
-                location: "Chennai",
-                category: ["Commercial", "Fashion"],
-                rating: 4.6,
-                price: 7500,
-                experience: 9,
-                image: "images/pgimg4.png"
-            },
-            {
-                name: "Oliver Smith",
-                specialty: "Fashion & Editorial Photography",
-                location: "Hyderabad",
-                category: ["Fashion", "Commercial"],
-                rating: 4.9,
-                price: 12000,
-                experience: 12,
-                image: "images/pgimg5.jpg"
-            },
-            {
-                name: "Johnson Junior",
-                specialty: "Event & Corporate Photography",
-                location: "Mumbai",
-                category: ["Event", "Commercial"],
-                rating: 4.5,
-                price: 4500,
-                experience: 4,
-                image: "images/pgimg6.jpg"
-            },
-            {
-                name: "Tom Williamson",
-                specialty: "Fine Art Photography",
-                location: "Delhi",
-                category: ["Portrait", "Nature"],
-                rating: 4.8,
-                price: 9000,
-                experience: 8,
-                image: "images/pgimg7.jpg"
-            },
-            {
-                name: "Sarah Johnson",
-                specialty: "Sports & Action Photography",
-                location: "Bangalore",
-                category: ["Event", "Nature"],
-                rating: 4.7,
-                price: 6000,
-                experience: 6,
-                image: "images/pgimg8.jpg"
-            }
-        ];
-
-        // Function to render photographer cards
-        function renderPhotographers(photographersList) {
-            const grid = document.getElementById('photographerGrid');
-            grid.innerHTML = '';
-
-            if (photographersList.length === 0) {
-                document.getElementById('totalResults').textContent = 0;
-                grid.innerHTML = '<div class="no-results">No photographers found matching your criteria. Please try different filters.</div>';
-                return;
-            }
-
-            document.getElementById('totalResults').textContent = photographersList.length;
-
-            photographersList.forEach(photographer => {
-                const card = document.createElement('div');
-                card.className = 'photographer-card';
-                card.innerHTML = `
-                    <img src="${photographer.image}" alt="${photographer.name}" class="photographer-img">
-                    <div class="photographer-info">
-                        <h3>${photographer.name}</h3>
-                        <div class="photographer-meta">
-                            <i class="fas fa-map-marker-alt"></i>
-                            <span>${photographer.location}</span>
-                            <i class="fas fa-briefcase"></i>
-                            <span>${photographer.experience} Yrs</span>
-                        </div>
-                        <p>${photographer.specialty}</p>
-                        <div class="rating">
-                            ${'★'.repeat(Math.floor(photographer.rating))}${photographer.rating % 1 !== 0 ? '½' : ''}${'☆'.repeat(5 - Math.ceil(photographer.rating))}
-                            <span>(${photographer.rating})</span>
-                        </div>
-                        <div class="price-range">
-                            <span class="starting-price">Starting from ₹${photographer.price}</span>
-                        </div>
-                        <a href="photographer-detail.php?id=${photographer.name.toLowerCase().replace(' ', '-')}" class="view-profile">View Profile</a>
-                    </div>
-                `;
-                grid.appendChild(card);
-            });
-        }
-
-        // Initialize the page with all photographers
-        renderPhotographers(photographers);
-
-        // Filter functionality
-        function filterPhotographers() {
-            // Get selected locations
-            const selectedLocations = Array.from(document.querySelectorAll('input[name="location"]:checked')).map(input => input.value);
+        document.addEventListener('DOMContentLoaded', function() {
+            // Store all photographer cards for filtering
+            const photographerCards = document.querySelectorAll('.photographer-card');
+            const totalResultsElement = document.getElementById('totalResults');
             
-            // Get selected categories
-            const selectedCategories = Array.from(document.querySelectorAll('input[name="category"]:checked')).map(input => input.value);
-            
-            // Get selected price ranges
-            const selectedPrices = Array.from(document.querySelectorAll('input[name="price"]:checked')).map(input => input.value);
-            
-            // Get selected ratings
-            const selectedRatings = Array.from(document.querySelectorAll('input[name="rating"]:checked')).map(input => input.value);
-            
-            // Get selected experience ranges
-            const selectedExperiences = Array.from(document.querySelectorAll('input[name="experience"]:checked')).map(input => input.value);
-            
-            // Get search text
-            const searchText = document.getElementById('searchInput').value.toLowerCase();
-
-            // Filter photographers based on selections
-            let filtered = photographers;
-
-            // Filter by search text
-            if (searchText) {
-                filtered = filtered.filter(p => 
-                    p.name.toLowerCase().includes(searchText) || 
-                    p.specialty.toLowerCase().includes(searchText) ||
-                    p.location.toLowerCase().includes(searchText)
-                );
-            }
-
-            // Filter by location
-            if (selectedLocations.length > 0) {
-                filtered = filtered.filter(p => selectedLocations.includes(p.location));
-            }
-
-            // Filter by category
-            if (selectedCategories.length > 0) {
-                filtered = filtered.filter(p => 
-                    p.category.some(cat => selectedCategories.includes(cat))
-                );
-            }
-
-            // Filter by price range
-            // Complete the existing filter functionality script
-            // Filter by price range
-            if (selectedPrices.length > 0) {
-                filtered = filtered.filter(p => {
-                    return selectedPrices.some(range => {
-                        const [min, max] = range.split('-').map(Number);
-                        if (max) {
-                            return p.price >= min && p.price <= max;
-                        } else {
-                            // For "10000+" case
-                            return p.price >= min;
-                        }
-                    });
-                });
-            }
-
-            // Filter by rating
-            if (selectedRatings.length > 0) {
-                filtered = filtered.filter(p => {
-                    return selectedRatings.some(rating => {
-                        const minRating = Number(rating);
-                        return p.rating >= minRating;
-                    });
-                });
-            }
-
-            // Filter by experience
-            if (selectedExperiences.length > 0) {
-                filtered = filtered.filter(p => {
-                    return selectedExperiences.some(range => {
-                        const [min, max] = range.split('-').map(Number);
-                        if (max) {
-                            return p.experience >= min && p.experience <= max;
-                        } else {
-                            // For "10+" case
-                            return p.experience >= min;
-                        }
-                    });
-                });
-            }
-
-            // Apply sorting
-            const sortBy = document.getElementById('sort-by').value;
-            switch (sortBy) {
-                case 'rating-high':
-                    filtered.sort((a, b) => b.rating - a.rating);
-                    break;
-                case 'rating-low':
-                    filtered.sort((a, b) => a.rating - b.rating);
-                    break;
-                case 'price-low':
-                    filtered.sort((a, b) => a.price - b.price);
-                    break;
-                case 'price-high':
-                    filtered.sort((a, b) => b.price - a.price);
-                    break;
-                // Default is popularity (no sorting needed for demo)
-            }
-
-            renderPhotographers(filtered);
-        }
-
-        // Event listeners for filter changes
-        document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-            checkbox.addEventListener('change', filterPhotographers);
-        });
-
-        document.getElementById('searchInput').addEventListener('input', filterPhotographers);
-        document.getElementById('sort-by').addEventListener('change', filterPhotographers);
-
-        // Clear all filters
-        document.getElementById('clearFilter').addEventListener('click', function() {
-            document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-                checkbox.checked = false;
-            });
-            document.getElementById('searchInput').value = '';
-            document.getElementById('sort-by').value = 'popularity';
-            renderPhotographers(photographers);
-        });
-
-        // Filter group expand/collapse
-        document.querySelectorAll('.filter-group h3').forEach(header => {
-            header.addEventListener('click', function() {
-                this.classList.toggle('expanded');
-                const options = this.nextElementSibling;
-                options.style.display = options.style.display === 'none' ? 'block' : 'none';
-            });
-        });
-
-        // Pagination functionality
-        document.querySelectorAll('.pagination a').forEach(page => {
-            page.addEventListener('click', function(e) {
-                e.preventDefault();
-                document.querySelectorAll('.pagination a').forEach(p => p.classList.remove('active'));
-                this.classList.add('active');
+            // Filter functionality
+            function filterPhotographers() {
+                // Get search input
+                const searchText = document.getElementById('searchInput').value.toLowerCase();
                 
-                // In a real application, you would load different sets of photographers here
-                // For this demo, we'll just scroll to the top of the results
-                document.querySelector('.photographers-container').scrollIntoView({ behavior: 'smooth' });
+                // Get selected locations
+                const selectedLocations = Array.from(document.querySelectorAll('input[name="location"]:checked')).map(input => input.value);
+                
+                // Get selected categories
+                const selectedCategories = Array.from(document.querySelectorAll('input[name="category"]:checked')).map(input => input.value);
+                
+                // Get selected price ranges
+                const selectedPrices = Array.from(document.querySelectorAll('input[name="price"]:checked')).map(input => input.value);
+                
+                let visibleCount = 0;
+                
+                // Loop through all photographer cards
+                photographerCards.forEach(card => {
+                    const name = card.dataset.name.toLowerCase();
+                    const location = card.dataset.location;
+                    
+                    // Check if card matches search text
+                    const matchesSearch = !searchText || name.includes(searchText) || location.toLowerCase().includes(searchText);
+                    
+                    // Check if card matches selected locations
+                    //const matchesLocation = selectedLocations.length === 0 || selectedLocations.includes(location);
+                    
+                    // More filters would be implemented similarly with real data
+                    // For now, we'll just use the search and location filters
+                    
+                    // Show or hide card based on filters
+                    if (matchesSearch /*&& matchesLocation*/) {
+                        card.style.display = 'block';
+                        visibleCount++;
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+                
+                // Update total results count
+                totalResultsElement.textContent = visibleCount;
+                
+                // Show no results message if needed
+                const noResultsElement = document.querySelector('.no-results');
+                if (visibleCount === 0) {
+                    if (!noResultsElement) {
+                        const noResults = document.createElement('div');
+                        noResults.className = 'no-results';
+                        noResults.innerText = 'No photographers found matching your criteria. Please try different filters.';
+                        document.getElementById('photographerGrid').appendChild(noResults);
+                    }
+                } else if (noResultsElement) {
+                    noResultsElement.remove();
+                }
+            }
+            
+            // Sort functionality
+            function sortPhotographers() {
+                const sortBy = document.getElementById('sort-by').value;
+                const grid = document.getElementById('photographerGrid');
+                
+                // Convert NodeList to Array for sorting
+                const cardsArray = Array.from(photographerCards);
+                
+                // Sort based on selected option
+                cardsArray.sort((a, b) => {
+                    switch (sortBy) {
+                        case 'name':
+                            return a.dataset.name.localeCompare(b.dataset.name);
+                        case 'location':
+                            return a.dataset.location.localeCompare(b.dataset.location);
+                        case 'photo_count':
+                            return parseInt(b.dataset.photoCount) - parseInt(a.dataset.photoCount);
+                        default:
+                            return 0;
+                    }
+                });
+                
+                // Re-append sorted cards to the grid
+                cardsArray.forEach(card => grid.appendChild(card));
+            }
+            
+            // Event listeners for filter and sort
+            document.getElementById('searchInput').addEventListener('input', filterPhotographers);
+            document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+                checkbox.addEventListener('change', filterPhotographers);
+            });
+            document.getElementById('sort-by').addEventListener('change', sortPhotographers);
+            
+            // Clear all filters
+            document.getElementById('clearFilter').addEventListener('click', function() {
+                document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                document.getElementById('searchInput').value = '';
+                filterPhotographers();
+            });
+            
+            // Filter group expand/collapse
+            document.querySelectorAll('.filter-group h3').forEach(header => {
+                header.addEventListener('click', function() {
+                    this.classList.toggle('expanded');
+                    const options = this.nextElementSibling;
+                    options.style.display = options.style.display === 'none' ? 'block' : 'none';
+                });
+            });
+            
+            // Pagination functionality (would be implemented with real data)
+            document.querySelectorAll('.pagination a').forEach(page => {
+                page.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    document.querySelectorAll('.pagination a').forEach(p => p.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // In a real implementation, this would load different pages of photographers
+                    document.querySelector('.photographers-container').scrollIntoView({ behavior: 'smooth' });
+                });
             });
         });
-
-        // Load more photographers function (for real implementation)
-        function loadMorePhotographers(page) {
-            // In a real application, you would make an AJAX call to fetch more photographers
-            // For example:
-            /*
-            fetch(`api/photographers?page=${page}`)
-                .then(response => response.json())
-                .then(data => {
-                    const newPhotographers = data.photographers;
-                    renderPhotographers(newPhotographers);
-                })
-                .catch(error => console.error('Error loading photographers:', error));
-            */
-        }
-
-        // Initialize the filter groups
-        document.querySelectorAll('.filter-group h3').forEach(header => {
-            const options = header.nextElementSibling;
-            if (header.classList.contains('expanded')) {
-                options.style.display = 'block';
-            } else {
-                options.style.display = 'none';
-            }
-        });
-
-        // Optional: Add geolocation feature to find photographers near user
-        document.getElementById('findNearMe').addEventListener('click', function() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(position => {
-                    const latitude = position.coords.latitude;
-                    const longitude = position.coords.longitude;
-                    
-                    // In a real application, you would make an API call to find photographers near these coordinates
-                    // For this demo, we'll just filter by a predefined city
-                    document.querySelectorAll('input[name="location"]').forEach(input => {
-                        input.checked = input.value === 'Mumbai';
-                    });
-                    filterPhotographers();
-                });
-            } else {
-                alert("Geolocation is not supported by this browser.");
-            }
-        });
+    </script>
+</body>
+</html>

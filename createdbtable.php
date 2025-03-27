@@ -92,5 +92,61 @@ if ($mysqli->query($sql)) {
     echo "Error creating table: " . $mysqli->error . "<br>";
 }
 
+
+$sql="CREATE TABLE IF NOT EXISTS tbl_booking (
+    booking_id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT,
+    session_type VARCHAR(100) NOT NULL,
+    status ENUM('pending', 'completed', 'cancelled') NOT NULL,
+    photographer_id INT,
+    booking_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    event_date DATE,
+    location VARCHAR(100) NOT NULL,
+    total_amt DECIMAL NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES tbl_user(user_id),
+    FOREIGN KEY (photographer_id) REFERENCES tbl_user(user_id)
+);";
+
+if ($mysqli->query($sql)) {
+    echo "Table Booking created successfully<br>";
+} else {
+    echo "Error creating table: " . $mysqli->error . "<br>";
+}
+
+$sql="CREATE TABLE IF NOT EXISTS tbl_reviews (
+    review_id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT,
+    photographer_id INT,
+    rating INT,
+    status BOOLEAN DEFAULT TRUE,
+    review_text text,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES tbl_user(user_id),
+    FOREIGN KEY (photographer_id) REFERENCES tbl_user(user_id)
+);";
+
+if ($mysqli->query($sql)) {
+    echo "Table Reviews created successfully<br>";
+} else {
+    echo "Error creating table: " . $mysqli->error . "<br>";
+}
+
+
+$sql="CREATE TABLE IF NOT EXISTS tbl_payment (
+    payment_id INT PRIMARY KEY AUTO_INCREMENT,
+    booking_id INT,
+    status ENUM('completed', 'incomplete') NOT NULL,
+    payment_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (booking_id) REFERENCES tbl_booking(booking_id)
+);";
+
+if ($mysqli->query($sql)) {
+    echo "Table payment created successfully<br>";
+} else {
+    echo "Error creating table: " . $mysqli->error . "<br>";
+}
+
 $mysqli->close();
 ?>

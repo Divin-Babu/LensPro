@@ -359,64 +359,75 @@ if ($photographerResult) {
             margin-bottom: 1rem;
         }
 
-        .booking {
-            padding: 2rem 5%;
-            background: var(--light-gray);
-        }
-
-        .booking-container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .booking-form {
-            max-width: 535px;
+        .about-us {
+            padding: 5rem 5%;
             background: white;
-            padding: 2rem;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            flex: 1;
         }
 
-        .booking-image {
-            flex: 1;
-            padding-left: 2rem;
+        .about-container {
             display: flex;
-            justify-content: center;
+            flex-wrap: wrap;
             align-items: center;
+            gap: 3rem;
         }
 
-        .booking-image img {
+        .about-image {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .about-image img {
             max-width: 100%;
             height: auto;
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
 
-        .form-group {
+        .about-content {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .about-content h3 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
             margin-bottom: 1.5rem;
         }
 
-        .form-group label {
-            display: block;
+        .about-content p {
+            margin-bottom: 1.5rem;
+            color: #555;
+            line-height: 1.8;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .feature-icon {
+            background: var(--light-gray);
+            color: var(--secondary-color);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+        }
+
+        .feature-text h4 {
             margin-bottom: 0.5rem;
             color: var(--primary-color);
-        }
-
-        .form-group input,
-        .form-group select {
-            width: 100%;
-            padding: 0.8rem;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            transition: border-color 0.3s;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus {
-            border-color: var(--secondary-color);
         }
 
         footer {
@@ -463,13 +474,13 @@ if ($photographerResult) {
             </div>
         </div>
         <div class="nav-links">
-            <a href="#home">Home</a>
+            <a href="index.php">Home</a>
             <?php if (isset($_SESSION['userid'])): ?>
-            <a href="#photographers">Photographers</a>
+            <a href="photographers.php">Photographers</a>
             <?php else: ?>
                 <a href="photographerregis.php">Become A Photographer</a>
             <?php endif; ?>
-            <a href="#booking">Book Now</a>
+            <a href="booking.php">Book Now</a>
             <?php if (isset($_SESSION['userid'])&& $row['role']=='user'): ?>
                 <div class="user-profile">
                     <div class="profile-photo">
@@ -483,7 +494,7 @@ if ($photographerResult) {
                     <i class="fas fa-chevron-down"></i>
                     <div class="dropdown-content">
                         <a href="userprofile.php"><i class="fas fa-user"></i> My Profile</a>
-                        <a href="my-bookings.php"><i class="fas fa-calendar-check"></i> My Bookings</a>
+                        <a href="my-booking.php"><i class="fas fa-calendar-check"></i> My Bookings</a>
                         <div class="dropdown-divider"></div>
                         <a href="logout.php" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
                     </div>
@@ -542,45 +553,64 @@ if ($photographerResult) {
     </div>
 </section>
 
-    <section class="booking" id="booking">
-        <h2 class="section-title">Book Your Session</h2>
-        <div class="booking-container">
-            <form class="booking-form" action="process-booking.php" method="post">
-                <div class="form-group">
-                    <label for="photographer">Select Photographer</label>
-                    <select id="photographer" name="photographer_id" required>
-                        <option value="">Choose a photographer</option>
-                        <?php foreach ($photographers as $photographer): ?>
-                            <option value="<?php echo $photographer['user_id']; ?>"><?php echo htmlspecialchars($photographer['name']); ?></option>
-                        <?php endforeach; ?>
-                    </select>
+    <!-- New About Us Section (replacing the Booking section) -->
+    <section class="about-us" id="about">
+        <h2 class="section-title">About LensPro</h2>
+        <div class="about-container">
+            <div class="about-image">
+                <img src="images/illusimg.png" alt="About LensPro">
+            </div>
+            <div class="about-content">
+                <h3>Your Premier Photography Platform</h3>
+                <p>Founded in 2023, LensPro brings together talented photographers and clients seeking to capture life's most precious moments. We believe that every significant event deserves to be immortalized through the lens of a skilled professional.</p>
+                <p>Our mission is to make professional photography accessible to everyone while providing photographers with a platform to showcase their unique talents and grow their business.</p>
+                
+                <div class="feature-grid">
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <i class="fas fa-camera"></i>
+                        </div>
+                        <div class="feature-text">
+                            <h4>Vetted Professionals</h4>
+                            <p>All photographers on our platform are thoroughly vetted for quality and professionalism.</p>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <i class="fas fa-calendar-check"></i>
+                        </div>
+                        <div class="feature-text">
+                            <h4>Easy Booking</h4>
+                            <p>Our streamlined booking process makes scheduling your photography session simple and hassle-free.</p>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <i class="fas fa-star"></i>
+                        </div>
+                        <div class="feature-text">
+                            <h4>Verified Reviews</h4>
+                            <p>Read authentic reviews from real clients to help you choose the perfect photographer.</p>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <div class="feature-text">
+                            <h4>Secure Payments</h4>
+                            <p>Your transactions are protected with our secure payment system.</p>
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="date">Preferred Date</label>
-                    <input type="date" id="date" name="booking_date" required min="<?php echo date('Y-m-d'); ?>">
-                </div>
-                <div class="form-group">
-                    <label for="time">Preferred Time</label>
-                    <input type="time" id="time" name="booking_time" required>
-                </div>
-                <div class="form-group">
-                    <label for="type">Session Type</label>
-                    <select id="type" name="session_type" required>
-                        <option value="">Select session type</option>
-                        <option value="portrait">Portrait</option>
-                        <option value="wedding">Wedding</option>
-                        <option value="event">Event</option>
-                        <option value="commercial">Commercial</option>
-                    </select>
-                </div>
-                <?php if (isset($_SESSION['userid'])): ?>
-                    <button type="submit" class="cta-button">Book Now</button>
+                
+                <div style="margin-top: 2rem; text-align: center;">
+                <?php if (isset($_SESSION['userid'])): ?> 
+                    <a href="booking.php" class="cta-button">Book Now</a>
                 <?php else: ?>
                     <a href="login.php" class="cta-button">Login to Book</a>
                 <?php endif; ?>
-            </form>
-            <div class="booking-image">
-                <img src="images/illusimg.png" alt="Booking illustration">
+                </div>
             </div>
         </div>
     </section>
@@ -588,21 +618,21 @@ if ($photographerResult) {
     <footer>
         <p>&copy; 2025 LensPro. All rights reserved.</p>
         <div class="social-links">
-            <a href="#"><i class="fab fa-facebook"></i></a>
-            <a href="#"><i class="fab fa-instagram"></i></a>
-            <a href="#"><i class="fab fa-twitter"></i></a>
+            <a href="https://www.facebook.com/"><i class="fab fa-facebook"></i></a>
+            <a href="https://www.instagram.com/"><i class="fab fa-instagram"></i></a>
+            <a href="https://x.com/"><i class="fab fa-twitter"></i></a>
         </div>
     </footer>
 
     <script>
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                document.querySelector(this.getAttribute('href')).scrollIntoView({
-                    behavior: 'smooth'
-                });
-            });
-        });
+        // document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        //     anchor.addEventListener('click', function (e) {
+        //         e.preventDefault();
+        //         document.querySelector(this.getAttribute('href')).scrollIntoView({
+        //             behavior: 'smooth'
+        //         });
+        //     });
+        // })
     </script>
 
 </body>

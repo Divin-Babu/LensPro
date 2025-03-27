@@ -18,7 +18,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </a>
         </li>
         <li>
-            <a href="#" class="<?php echo $current_page == 'bookings.php' ? 'active' : ''; ?>">
+            <a href="photographer-bookings.php" class="<?php echo $current_page == 'photographer-bookings.php' ? 'active' : ''; ?>">
                 <i class="fas fa-calendar-alt"></i>
                 <span>Bookings</span>
             </a>
@@ -30,7 +30,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </a>
         </li>
         <li>
-            <a href="#" class="<?php echo $current_page == 'reviews.php' ? 'active' : ''; ?>">
+            <a href="photographerviewreview.php" class="<?php echo $current_page == 'photographerviewreview.php' ? 'active' : ''; ?>">
                 <i class="fas fa-star"></i>
                 <span>Reviews</span>
             </a>
@@ -51,6 +51,15 @@ $current_page = basename($_SERVER['PHP_SELF']);
 </div>
 
 <style>
+    :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --success-color: #2ecc71;
+            --warning-color: #f1c40f;
+            --light-gray: #f5f6fa;
+            --dark-gray: #2c3e50;
+        }
 .sidebar {
     width: 250px;
     background: var(--primary-color);

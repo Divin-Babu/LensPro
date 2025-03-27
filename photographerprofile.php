@@ -9,6 +9,7 @@ if (!isset($_SESSION['userid']) || $_SESSION['role'] !== 'photographer') {
 $success_message = $error_message = '';
 $photographer_id = $_SESSION['userid'];
 
+
 $stmt = mysqli_prepare($conn, "SELECT u.*, p.bio, p.location, p.category
                              FROM tbl_user u 
                              JOIN tbl_photographer p ON u.user_id = p.photographer_id 
@@ -26,6 +27,17 @@ if($result && $result->num_rows > 0) {
     }
 }
 
+$selectedState = '';
+$selectedCity = '';
+if (!empty($photographer['location'])) {
+    $location_parts = explode(', ', $photographer['location']);
+    if (count($location_parts) == 2) {
+        $selectedCity = $location_parts[0];
+        $selectedState = $location_parts[1];
+    } else {
+        $selectedState = $photographer['location'];
+    }
+}
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $name = $_POST['name'];
@@ -96,6 +108,7 @@ $selected_categories = explode(",", $photographer['category']);
     <title>Edit Profile - LensPro</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="location-selector.js"></script>
     <style>
         :root {
             --primary-color: #2c3e50;
@@ -369,9 +382,23 @@ $selected_categories = explode(",", $photographer['category']);
                             </div>
                             
                             <div class="form-group">
-                                <label for="location">Location</label>
-                                <input type="text" id="location" name="location" value="<?php echo htmlspecialchars($photographer['location']); ?>" required>
-                            </div>
+                                    <label for="state">State</label>
+                                    <select id="state" name="state" required>
+                                        <option value="">Select State</option>
+                                        <!-- States will be populated by JavaScript -->
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="city">City</label>
+                                    <select id="city" name="city" required>
+                                        <option value="">Select City</option>
+                                        <!-- Cities will be populated based on selected state -->
+                                    </select>
+                                </div>
+
+                                <!-- Add a hidden field to store the combined location string -->
+                                <input type="hidden" id="location" name="location" value="<?php echo htmlspecialchars($photographer['location']); ?>">
                             
                             <div class="form-group full-width">
                                 <label for="bio">Professional Bio</label>
@@ -464,6 +491,60 @@ $selected_categories = explode(",", $photographer['category']);
                 alert('Please fix the errors before submitting.');
             }
         });
-    </script>
+        document.addEventListener("DOMContentLoaded", function() {
+    // First, make sure the LocationSelector is initialized
+    const locationSelector = new LocationSelector('state', 'city');
+    
+    // Define the selected state and city from PHP
+    const selectedState = "<?php echo addslashes($selectedState); ?>";
+    const selectedCity = "<?php echo addslashes($selectedCity); ?>";
+    
+    // Wait for the states to be loaded before setting values
+    const checkStatesLoaded = setInterval(function() {
+        const stateSelect = document.getElementById('state');
+        
+        // Once states are loaded
+        if (stateSelect.options.length > 1) {
+            clearInterval(checkStatesLoaded);
+            
+            // Set the selected state if it exists
+            if (selectedState) {
+                stateSelect.value = selectedState;
+                
+                // Trigger the change event to load cities
+                const changeEvent = new Event('change');
+                stateSelect.dispatchEvent(changeEvent);
+                
+                // Wait for cities to be loaded before setting the city value
+                const checkCitiesLoaded = setInterval(function() {
+                    const citySelect = document.getElementById('city');
+                    
+                    // Once cities are loaded
+                    if (!citySelect.disabled && citySelect.options.length > 1) {
+                        clearInterval(checkCitiesLoaded);
+                        
+                        // Set the selected city if it exists
+                        if (selectedCity) {
+                            citySelect.value = selectedCity;
+                        }
+                    }
+                }, 100);
+            }
+        }
+    }, 100);
+    
+    // Update the hidden location field when form is submitted
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const locationString = locationSelector.getLocationString();
+        if (locationString) {
+            document.getElementById('location').value = locationString;
+        } else {
+            e.preventDefault();
+            alert('Please select both state and city');
+        }
+    });
+});
+</script>
+<script src="location-selector.js"></script>
 </body>
 </html>

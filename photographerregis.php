@@ -16,7 +16,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email = test_input($_POST["email"]);
     $phno = test_input($_POST["phno"]);
     $password = test_input($_POST["password"]);
-    $location = test_input($_POST["location"]);
+    $state = isset($_POST["state"]) ? test_input($_POST["state"]) : "";
+    $city = isset($_POST["city"]) ? test_input($_POST["city"]) : "";
+    $location = $city . ", " . $state;
     $bio = test_input($_POST["bio"]);
     
     $category_ids = isset($_POST["categories"]) ? $_POST["categories"] : [];
@@ -100,6 +102,7 @@ function test_input($data) {
     <title>LensPro - Photographer Portal</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="location-selector.js"></script>
     <style>
         :root {
             --primary-color: #2c3e50;
@@ -441,10 +444,24 @@ function test_input($data) {
         <input type="password" id="password" name="password" placeholder="Create a strong password" required>
         <span style="color:red;"></span>
     </div>
-    <div class="form-group full-width">
-        <label for="location">Location</label>
-        <input type="text" id="location" name="location" placeholder="Enter your location" required>
+    <div class="form-group">
+    <label for="state">State</label>
+    <select id="state" name="state" required>
+        <option value="">Select State</option>
+        <!-- States will be populated by JavaScript -->
+        </select>
     </div>
+
+    <input type="hidden" id="location" name="location" value="">
+
+    <div class="form-group">
+        <label for="city">City</label>
+        <select id="city" name="city" required>
+            <option value="">Select City</option>
+            <!-- Cities will be populated based on selected state -->
+        </select>
+    </div>
+
     <div class="form-group full-width">
         <label for="bio">Professional Bio</label>
         <textarea id="bio" name="bio" rows="3" placeholder="Tell clients about yourself, your experience, and your style" required></textarea>
@@ -588,6 +605,21 @@ function test_input($data) {
             this.submit();
         } else {
             alert("Please fix all errors before submitting");
+        }
+    });
+});
+// Initialize the location selector
+document.addEventListener("DOMContentLoaded", function() {
+    const locationSelector = new LocationSelector('state', 'city');
+    
+    // Update the hidden location field when form is submitted
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const locationString = locationSelector.getLocationString();
+        if (locationString) {
+            document.getElementById('location').value = locationString;
+        } else {
+            e.preventDefault();
+            alert('Please select both state and city');
         }
     });
 });

@@ -669,8 +669,8 @@ while ($image = mysqli_fetch_assoc($galleryResult)) {
         </div>
         <div class="nav-links">
             <a href="index.php">Home</a>
-            <a href="index.php#photographers">Photographers</a>
-            <a href="index.php#booking">Book Now</a>
+            <a href="photographers.php">Photographers</a>
+            <a href="booking.php">Book Now</a>
             <?php if (isset($_SESSION['userid']) && $row['role'] == 'user'): ?>
                 <div class="user-profile">
                     <div class="profile-photo">
@@ -684,7 +684,7 @@ while ($image = mysqli_fetch_assoc($galleryResult)) {
                     <i class="fas fa-chevron-down"></i>
                     <div class="dropdown-content">
                         <a href="userprofile.php"><i class="fas fa-user"></i> My Profile</a>
-                        <a href="my-bookings.php"><i class="fas fa-calendar-check"></i> My Bookings</a>
+                        <a href="my-booking.php"><i class="fas fa-calendar-check"></i> My Bookings</a>
                         <div class="dropdown-divider"></div>
                         <a href="logout.php" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
                     </div>

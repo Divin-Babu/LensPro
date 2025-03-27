@@ -18,6 +18,32 @@ mysqli_stmt_bind_param($stmt, "i", $photographer_id);
 mysqli_stmt_execute($stmt);
 $photographer = mysqli_stmt_get_result($stmt)->fetch_assoc();
 
+
+// Fetch bookings for this photographer
+$bookingsQuery = "SELECT b.*, u.name AS client_name 
+                  FROM tbl_booking b 
+                  JOIN tbl_user u ON b.user_id = u.user_id 
+                  WHERE b.photographer_id = ? 
+                  ORDER BY b.event_date";
+$bookingsStmt = mysqli_prepare($conn, $bookingsQuery);
+mysqli_stmt_bind_param($bookingsStmt, "i", $photographer_id);
+mysqli_stmt_execute($bookingsStmt);
+$bookingsResult = mysqli_stmt_get_result($bookingsStmt);
+$bookings = [];
+while ($booking = mysqli_fetch_assoc($bookingsResult)) {
+    $bookings[] = $booking;
+}
+
+// Separate bookings by status
+$upcomingBookings = array_filter($bookings, function($booking) {
+    return $booking['status'] == 'confirmed' && strtotime($booking['event_date']) > time();
+});
+$pendingBookings = array_filter($bookings, function($booking) {
+    return $booking['status'] == 'pending';
+});
+$completedBookings = array_filter($bookings, function($booking) {
+    return $booking['status'] == 'completed';
+});
 ?>
 
 <!DOCTYPE html>
@@ -234,6 +260,7 @@ $photographer = mysqli_stmt_get_result($stmt)->fetch_assoc();
 </head>
 <body>
     <?php include 'photographer_sidebar.php'; ?>
+
         <div class="main-content">
             <h1 style="margin-bottom: 30px;">Welcome <?php echo htmlspecialchars($photographer['name']); ?>!</h1>
 
@@ -259,21 +286,24 @@ $photographer = mysqli_stmt_get_result($stmt)->fetch_assoc();
             <div class="content-grid">
                 <div class="card">
                     <h2>Upcoming Bookings</h2>
-                    <!-- <?php foreach ($upcoming_bookings as $booking): ?>
-                        <div class="booking-item">
-                            <div class="booking-info">
-                                <h4><?php echo htmlspecialchars($booking['client_name']); ?></h4>
-                                <div class="booking-date">
-                                    <i class="far fa-calendar"></i>
-                                    <?php echo date('F j, Y', strtotime($booking['event_date'])); ?>
+                    <?php if (!empty($upcomingBookings)): ?>
+                        <?php foreach ($upcomingBookings as $booking): ?>
+                            <div class="booking-item">
+                                <div class="booking-info">
+                                    <h4><?php echo htmlspecialchars($booking['client_name']); ?></h4>
+                                    <div class="booking-date">
+                                        <i class="far fa-calendar"></i>
+                                        <?php echo date('F j, Y', strtotime($booking['event_date'])); ?> 
+                                        at <?php echo date('h:i A', strtotime($booking['event_time'])); ?>
+                                    </div>
+                                    <small><?php echo htmlspecialchars($booking['session_type']); ?> - <?php echo htmlspecialchars($booking['location']); ?></small>
                                 </div>
+                                <span class="status-badge status-booked">Confirmed</span>
                             </div>
-                            <span class="status-badge status-booked">Booked</span>
-                        </div>
-                    <?php endforeach; ?>
-                    <?php if (empty($upcoming_bookings)): ?>
+                        <?php endforeach; ?>
+                    <?php else: ?>
                         <p>No upcoming bookings</p>
-                    <?php endif; ?> -->
+                    <?php endif; ?>
                 </div>
 
                 <div class="card">
