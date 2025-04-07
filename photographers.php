@@ -15,7 +15,9 @@ if (isset($_SESSION['userid'])) {
 
 // Fetch all photographers from database by joining tbl_user and tbl_photographer tables
 $photographers_query = "SELECT u.user_id, u.name, u.profile_pic, p.bio, p.location, 
-                       (SELECT COUNT(*) FROM tbl_gallery WHERE photographer_id = u.user_id) as photo_count
+                       (SELECT COUNT(*) FROM tbl_gallery WHERE photographer_id = u.user_id) as photo_count,
+                       (SELECT AVG(rating) FROM tbl_reviews WHERE photographer_id = u.user_id AND status = TRUE) as avg_rating,
+                       (SELECT COUNT(*) FROM tbl_reviews WHERE photographer_id = u.user_id AND status = TRUE) as review_count
                        FROM tbl_user u 
                        JOIN tbl_photographer p ON u.user_id = p.photographer_id 
                        WHERE u.role = 'photographer' AND u.status = TRUE";
@@ -643,7 +645,7 @@ $locations_result = mysqli_query($conn, $locations_query);
             <button class="clear-filter" id="clearFilter">Clear All Filters</button>
         </div>
 
-        <!-- Photographers listing -->
+        
         <div class="photographers-container">
             <div class="search-results">
                 <div class="results-count"><span id="totalResults">
@@ -654,7 +656,6 @@ $locations_result = mysqli_query($conn, $locations_query);
                     <select id="sort-by">
                         <option value="name">Name</option>
                         <option value="location">Location</option>
-                        <option value="photo_count">Portfolio Size</option>
                     </select>
                 </div>
             </div>
@@ -663,14 +664,12 @@ $locations_result = mysqli_query($conn, $locations_query);
                 <?php
                 if (mysqli_num_rows($photographers_result) > 0) {
                     while ($photographer = mysqli_fetch_assoc($photographers_result)) {
-                        // Get random rating between 4.0 and 5.0 for demo purposes (would be real data in production)
-                        $rating = number_format(rand(40, 50) / 10, 1);
                         
                         // Get random starting price between 2000 and 15000 (would be real data in production)
                         $price = rand(2, 15) * 1000;
                         
                         // Generate profile image path (use actual profile_pic if available)
-                        $image_path = $photographer['profile_pic'] ? htmlspecialchars($photographer['profile_pic']) :htmlspecialchars($photographer['name']);
+                        $image_path = $photographer['profile_pic'] ? htmlspecialchars($photographer['profile_pic']) : 'images/default-photographer.jpg';
                         
                         // Short bio or specialty
                         $bio = htmlspecialchars(substr($photographer['bio'], 0, 100)) . '...';
@@ -684,35 +683,34 @@ $locations_result = mysqli_query($conn, $locations_query);
                                     <div class="photographer-meta">
                                         <i class="fas fa-map-marker-alt"></i>
                                         <span>'.htmlspecialchars($photographer['location']).'</span>
-                                        <i class="fas fa-image"></i>
-                                        <span>'.$photographer['photo_count'].' Photos</span>
                                     </div>
-                                    <p>'.$bio.'</p>
-                                    <div class="rating">';
+                                    <p>'.$bio.'</p>';
                                     
-                        // Generate star rating display
+                        $rating = $photographer['avg_rating'] ? number_format($photographer['avg_rating'], 1) : 0;
+                        $review_count = $photographer['review_count'] ? $photographer['review_count'] : 0;
+                        echo '<div class="rating">';
+                        
                         $full_stars = floor($rating);
                         $half_star = ($rating - $full_stars) >= 0.5;
-                        
                         for ($i = 1; $i <= 5; $i++) {
                             if ($i <= $full_stars) {
-                                echo '★';
+                                echo '<i class="fas fa-star"></i>';
                             } elseif ($half_star && $i == $full_stars + 1) {
-                                echo '½';
+                                echo '<i class="fas fa-star-half-alt"></i>';
                                 $half_star = false;
                             } else {
-                                echo '☆';
+                                echo '<i class="far fa-star"></i>';
                             }
                         }
+                        echo ' <span>('.$rating.' - '.$review_count.' reviews)</span>';
+                        echo '</div>';
                         
-                        echo '      <span>('.$rating.')</span>
-                                    </div>
-                                    <div class="price-range">
-                                        <span class="starting-price">Starting from ₹'.$price.'</span>
-                                    </div>
-                                    <a href="photographer-profileview.php?id='.$photographer['user_id'].'" class="view-profile">View Profile</a>
-                                </div>
-                            </div>';
+                        echo '<div class="price-range">
+                                <span class="starting-price">Starting from ₹'.$price.'</span>
+                              </div>
+                              <a href="photographer-profileview.php?id='.$photographer['user_id'].'" class="view-profile">View Profile</a>
+                            </div>
+                        </div>';
                     }
                 } else {
                     echo '<div class="no-results">No photographers found in the database.</div>';
@@ -816,8 +814,6 @@ $locations_result = mysqli_query($conn, $locations_query);
                             return a.dataset.name.localeCompare(b.dataset.name);
                         case 'location':
                             return a.dataset.location.localeCompare(b.dataset.location);
-                        case 'photo_count':
-                            return parseInt(b.dataset.photoCount) - parseInt(a.dataset.photoCount);
                         default:
                             return 0;
                     }

@@ -415,7 +415,7 @@ $users = getAllUsers($conn, $search, $statusFilter);
             <i class="fas fa-camera"></i>
             Photographers
         </a>
-        <a href="#" class="menu-item">
+        <a href="adminviewbooking.php" class="menu-item">
             <i class="fas fa-calendar-check"></i>
             Bookings
         </a>
@@ -423,7 +423,7 @@ $users = getAllUsers($conn, $search, $statusFilter);
             <i class="fas fa-list"></i> 
             Categories
         </a>
-        <a href="#" class="menu-item">
+        <a href="adminviewreview.php " class="menu-item">
             <i class="fas fa-star"></i>
             Reviews
         </a>

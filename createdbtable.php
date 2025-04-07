@@ -49,6 +49,7 @@ $sql = "CREATE TABLE IF NOT EXISTS tbl_photographer (
     location VARCHAR(200) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    upi_id VARCHAR(30) NOT NULL,
     FOREIGN KEY (photographer_id) REFERENCES tbl_user(user_id)
 )";
 
@@ -96,8 +97,8 @@ if ($mysqli->query($sql)) {
 $sql="CREATE TABLE IF NOT EXISTS tbl_booking (
     booking_id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT,
-    session_type VARCHAR(100) NOT NULL,
-    status ENUM('pending', 'completed', 'cancelled') NOT NULL,
+    session_type VARCHAR(50) NOT NULL,
+    status ENUM('pending', 'completed', 'cancelled','confirmed','rejected') NOT NULL,
     photographer_id INT,
     booking_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -119,10 +120,12 @@ $sql="CREATE TABLE IF NOT EXISTS tbl_reviews (
     user_id INT,
     photographer_id INT,
     rating INT,
+    booking_id INT,
     status BOOLEAN DEFAULT TRUE,
     review_text text,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (booking_id) REFERENCES tbl_booking(booking_id),
     FOREIGN KEY (user_id) REFERENCES tbl_user(user_id),
     FOREIGN KEY (photographer_id) REFERENCES tbl_user(user_id)
 );";
@@ -148,5 +151,23 @@ if ($mysqli->query($sql)) {
     echo "Error creating table: " . $mysqli->error . "<br>";
 }
 
+
+$sql = "CREATE TABLE IF NOT EXISTS tbl_photographer_pricing (
+    pricing_id INT PRIMARY KEY AUTO_INCREMENT,
+    photographer_id INT NOT NULL,
+    category_id INT NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    status BOOLEAN DEFAULT TRUE,
+    FOREIGN KEY (photographer_id) REFERENCES tbl_user(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES tbl_categories(category_id) ON DELETE CASCADE
+)";
+
+if ($mysqli->query($sql)) {
+    echo "Table payment created successfully<br>";
+} else {
+    echo "Error creating table: " . $mysqli->error . "<br>";
+}
 $mysqli->close();
 ?>

@@ -10,13 +10,29 @@ $success_message = $error_message = '';
 $photographer_id = $_SESSION['userid'];
 
 
-$stmt = mysqli_prepare($conn, "SELECT u.*, p.bio, p.location, p.category
+$stmt = mysqli_prepare($conn, "SELECT u.*, p.bio, p.location, p.category, p.upi_id
                              FROM tbl_user u 
                              JOIN tbl_photographer p ON u.user_id = p.photographer_id 
                              WHERE u.user_id = ?");
 mysqli_stmt_bind_param($stmt, "i", $photographer_id);
 mysqli_stmt_execute($stmt);
 $photographer = mysqli_stmt_get_result($stmt)->fetch_assoc();
+
+$pricing_data = [];
+$pricing_query = "SELECT tp.*, tc.category_name 
+                 FROM tbl_photographer_pricing tp 
+                 JOIN tbl_categories tc ON tp.category_id = tc.category_id 
+                 WHERE tp.photographer_id = ?";
+$pricing_stmt = mysqli_prepare($conn, $pricing_query);
+mysqli_stmt_bind_param($pricing_stmt, "i", $photographer_id);
+mysqli_stmt_execute($pricing_stmt);
+$pricing_result = mysqli_stmt_get_result($pricing_stmt);
+
+if($pricing_result && mysqli_num_rows($pricing_result) > 0) {
+    while($row = mysqli_fetch_assoc($pricing_result)) {
+        $pricing_data[$row['category_id']] = $row;
+    }
+}
 
 $categories = [];
 $cat_query = "SELECT * FROM tbl_categories ORDER BY category_name";
@@ -45,6 +61,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $phno = $_POST['phno'];
     $location = $_POST['location'];
     $bio = $_POST['bio'];
+    $upi_id = $_POST['upi_id']; // Added UPI ID field
     $category_ids = isset($_POST["categories"]) ? $_POST["categories"] : [];
     $category = implode(",", $category_ids);
     
@@ -58,8 +75,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         mysqli_stmt_execute($user_stmt);
         
         
-        $photo_stmt = mysqli_prepare($conn, "UPDATE tbl_photographer SET bio = ?, location = ?, category = ? WHERE photographer_id = ?");
-        mysqli_stmt_bind_param($photo_stmt, "sssi", $bio, $location, $category, $photographer_id);
+        $photo_stmt = mysqli_prepare($conn, "UPDATE tbl_photographer SET bio = ?, location = ?, category = ?, upi_id = ? WHERE photographer_id = ?");
+        mysqli_stmt_bind_param($photo_stmt, "ssssi", $bio, $location, $category, $upi_id, $photographer_id);
         mysqli_stmt_execute($photo_stmt);
         
         if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] == 0) {
@@ -98,6 +115,54 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 
 $selected_categories = explode(",", $photographer['category']);
+if(isset($_POST['category_prices']) && is_array($_POST['category_prices'])) {
+    foreach($_POST['category_prices'] as $category_id => $price_data) {
+        $price = !empty($price_data['price']) ? floatval($price_data['price']) : 0;
+       // $duration = !empty($price_data['duration']) ? $price_data['duration'] : '';
+        $description = !empty($price_data['description']) ? $price_data['description'] : '';
+        
+        // Check if pricing entry already exists
+        $check_query = "SELECT pricing_id FROM tbl_photographer_pricing 
+                       WHERE photographer_id = ? AND category_id = ?";
+        $check_stmt = mysqli_prepare($conn, $check_query);
+        mysqli_stmt_bind_param($check_stmt, "ii", $photographer_id, $category_id);
+        mysqli_stmt_execute($check_stmt);
+        $check_result = mysqli_stmt_get_result($check_stmt);
+        
+        if(mysqli_num_rows($check_result) > 0) {
+            // Update existing price
+            $row = mysqli_fetch_assoc($check_result);
+            $pricing_id = $row['pricing_id'];
+            $update_query = "UPDATE tbl_photographer_pricing SET 
+                            price = ?,  description = ? 
+                            WHERE pricing_id = ?";
+            $update_stmt = mysqli_prepare($conn, $update_query);
+            mysqli_stmt_bind_param($update_stmt, "dsi", $price, $description, $pricing_id);
+            mysqli_stmt_execute($update_stmt);
+        } else {
+            // Insert new price
+            $insert_query = "INSERT INTO tbl_photographer_pricing 
+                           (photographer_id, category_id, price, description) 
+                           VALUES (?, ?, ?, ?)";
+            $insert_stmt = mysqli_prepare($conn, $insert_query);
+            mysqli_stmt_bind_param($insert_stmt, "iids", $photographer_id, $category_id, $price, $description);
+            mysqli_stmt_execute($insert_stmt);
+        }
+    }
+}
+
+
+$pricing_stmt = mysqli_prepare($conn, $pricing_query);
+mysqli_stmt_bind_param($pricing_stmt, "i", $photographer_id);
+mysqli_stmt_execute($pricing_stmt);
+$pricing_result = mysqli_stmt_get_result($pricing_stmt);
+$pricing_data = [];
+
+if($pricing_result && mysqli_num_rows($pricing_result) > 0) {
+    while($row = mysqli_fetch_assoc($pricing_result)) {
+        $pricing_data[$row['category_id']] = $row;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -382,23 +447,23 @@ $selected_categories = explode(",", $photographer['category']);
                             </div>
                             
                             <div class="form-group">
-                                    <label for="state">State</label>
-                                    <select id="state" name="state" required>
-                                        <option value="">Select State</option>
-                                        <!-- States will be populated by JavaScript -->
-                                    </select>
-                                </div>
+                                <label for="state">State</label>
+                                <select id="state" name="state" required>
+                                    <option value="">Select State</option>
+                                    <!-- States will be populated by JavaScript -->
+                                </select>
+                            </div>
 
-                                <div class="form-group">
-                                    <label for="city">City</label>
-                                    <select id="city" name="city" required>
-                                        <option value="">Select City</option>
-                                        <!-- Cities will be populated based on selected state -->
-                                    </select>
-                                </div>
+                            <div class="form-group">
+                                <label for="city">City</label>
+                                <select id="city" name="city" required>
+                                    <option value="">Select City</option>
+                                    <!-- Cities will be populated based on selected state -->
+                                </select>
+                            </div>
 
-                                <!-- Add a hidden field to store the combined location string -->
-                                <input type="hidden" id="location" name="location" value="<?php echo htmlspecialchars($photographer['location']); ?>">
+                            <!-- Add a hidden field to store the combined location string -->
+                            <input type="hidden" id="location" name="location" value="<?php echo htmlspecialchars($photographer['location']); ?>">
                             
                             <div class="form-group full-width">
                                 <label for="bio">Professional Bio</label>
@@ -414,6 +479,48 @@ $selected_categories = explode(",", $photographer['category']);
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
+                            </div>
+                            <div class="form-group full-width">
+    <h3 style="margin-bottom: 15px; color: var(--dark-gray);">Pricing Information</h3>
+    <div class="pricing-container">
+        <?php foreach($categories as $category): ?>
+            <div class="pricing-item" id="pricing-<?php echo $category['category_id']; ?>" style="display: <?php echo in_array($category['category_name'], $selected_categories) ? 'block' : 'none'; ?>; margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background-color: #f9f9f9;">
+                <h4 style="margin-bottom: 10px;"><?php echo htmlspecialchars($category['category_name']); ?></h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                        <label for="price-<?php echo $category['category_id']; ?>">Price (₹)</label>
+                        <input type="number" step="0.01" min="0" 
+                               id="price-<?php echo $category['category_id']; ?>" 
+                               name="category_prices[<?php echo $category['category_id']; ?>][price]"
+                               value="<?php echo isset($pricing_data[$category['category_id']]) ? $pricing_data[$category['category_id']]['price'] : ''; ?>"
+                               style="width: 100%; padding: 8px; margin-top: 5px;"
+                               placeholder="Enter price">
+                    </div>
+                    <!-- <div>
+                        <label for="duration-<?php echo $category['category_id']; ?>">Duration</label>
+                        <input type="text" 
+                               id="duration-<?php echo $category['category_id']; ?>" 
+                               name="category_prices[<?php echo $category['category_id']; ?>][duration]" 
+                               value="<?php echo isset($pricing_data[$category['category_id']]) ? htmlspecialchars($pricing_data[$category['category_id']]['duration']) : ''; ?>"
+                               style="width: 100%; padding: 8px; margin-top: 5px;"
+                               placeholder="e.g. 2 hours, Half day">
+                    </div> -->
+                </div>
+                <div style="margin-top: 10px;">
+                    <label for="desc-<?php echo $category['category_id']; ?>">Description</label>
+                    <textarea id="desc-<?php echo $category['category_id']; ?>" 
+                              name="category_prices[<?php echo $category['category_id']; ?>][description]" 
+                              rows="2" style="width: 100%; padding: 8px; margin-top: 5px;"
+                              placeholder="What's included in this package"><?php echo isset($pricing_data[$category['category_id']]) ? htmlspecialchars($pricing_data[$category['category_id']]['description']) : ''; ?></textarea>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+                            <div class="form-group">
+                                <label for="upi_id">UPI ID</label>
+                                <input type="text" id="upi_id" name="upi_id" value="<?php echo htmlspecialchars($photographer['upi_id']); ?>" required placeholder="yourname@upi">
+                                <small style="color: #666; margin-top: 5px; display: block;">Enter your UPI ID for receiving payments (e.g., yourname@upi)</small>
                             </div>
                         </div>
                         <button type="submit" class="submit-btn">Save Changes</button>
@@ -457,6 +564,7 @@ $selected_categories = explode(",", $photographer['category']);
         const nameInput = document.getElementById('name');
         const emailInput = document.getElementById('email');
         const phoneInput = document.getElementById('phone');
+        const upiInput = document.getElementById('upi_id');
         
         form.addEventListener('submit', function(event) {
             let isValid = true;
@@ -484,6 +592,14 @@ $selected_categories = explode(",", $photographer['category']);
                 isValid = false;
             } else {
                 phoneInput.style.borderColor = '';
+            }
+            
+            // UPI ID validation
+            if (upiInput.value.trim() === '') {
+                upiInput.style.borderColor = 'red';
+                isValid = false;
+            } else {
+                upiInput.style.borderColor = '';
             }
             
             if (!isValid) {
@@ -543,6 +659,40 @@ $selected_categories = explode(",", $photographer['category']);
             alert('Please select both state and city');
         }
     });
+});
+
+// Improved categories selection handler to show pricing sections in real-time
+document.getElementById('categories').addEventListener('change', function() {
+    // Get all selected options
+    const selectElement = this;
+    const selectedOptions = [];
+    
+    // Get all selected options text
+    for (let i = 0; i < selectElement.options.length; i++) {
+        if (selectElement.options[i].selected) {
+            selectedOptions.push(selectElement.options[i].text);
+        }
+    }
+    
+    // Update the display of pricing sections
+    document.querySelectorAll('.pricing-item').forEach(item => {
+        const categoryName = item.querySelector('h4').textContent;
+        if (selectedOptions.includes(categoryName)) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+});
+
+// Run the categories change handler once on page load to ensure correct initial state
+document.addEventListener('DOMContentLoaded', function() {
+    // Trigger the change event on the categories select element
+    const categoriesSelect = document.getElementById('categories');
+    if (categoriesSelect) {
+        const event = new Event('change');
+        categoriesSelect.dispatchEvent(event);
+    }
 });
 </script>
 <script src="location-selector.js"></script>

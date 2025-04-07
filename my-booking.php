@@ -372,20 +372,26 @@ while ($review = mysqli_fetch_assoc($reviews_result)) {
         }
 
         .no-bookings {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            max-width: 600px;
             text-align: center;
             color: var(--white);
-            margin-top: 50px;
-            background-color: rgba(0, 0, 0, 0.3);
+            background-color: var(--secondary-color);
             padding: 30px;
             border-radius: 15px;
+            z-index: 10;
         }
 
         .no-bookings p {
-            font-size: 1.2rem;
+            font-size: 1.5rem;
         }
 
         .no-bookings a {
-            color: var(--secondary-color);
+            color: black;
             text-decoration: none;
             font-weight: bold;
             transition: color 0.3s ease;
@@ -523,12 +529,12 @@ while ($review = mysqli_fetch_assoc($reviews_result)) {
         }
         ?>
 
-        <div class="bookings-grid">
             <?php if (empty($bookings)): ?>
                 <div class="no-bookings">
                     <p>No bookings found. <?php echo $search_query ? "Try a different search." : "<a href='booking.php'>Book your first session!</a>"; ?></p>
                 </div>
             <?php else: ?>
+            <div class="bookings-grid">
                 <?php foreach ($bookings as $booking): ?>
                     <div class="booking-card">
                         <?php 

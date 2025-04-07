@@ -21,7 +21,7 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 
 $photographer_id = $_GET['id'];
 
-// Fetch photographer details
+
 $photographerQuery = "SELECT u.user_id, u.name, u.email, u.profile_pic, p.bio, p.location 
                      FROM tbl_user u 
                      LEFT JOIN tbl_photographer p ON u.user_id = p.photographer_id 
@@ -36,6 +36,21 @@ if (mysqli_num_rows($photographerResult) == 0) {
     exit();
 }
 
+$reviewsQuery = "SELECT r.review_id, r.rating, r.review_text, r.created_at, 
+                u.name, u.profile_pic 
+                FROM tbl_reviews r 
+                JOIN tbl_user u ON r.user_id = u.user_id 
+                WHERE r.photographer_id = ? AND r.status = TRUE 
+                ORDER BY r.created_at DESC";
+$stmt = mysqli_prepare($conn, $reviewsQuery);
+mysqli_stmt_bind_param($stmt, "i", $photographer_id);
+mysqli_stmt_execute($stmt);
+$reviewsResult = mysqli_stmt_get_result($stmt);
+
+$reviews = [];
+while ($review = mysqli_fetch_assoc($reviewsResult)) {
+    $reviews[] = $review;
+}
 $photographer = mysqli_fetch_assoc($photographerResult);
 
 // Fetch photographer's gallery
@@ -51,6 +66,17 @@ $galleryResult = mysqli_stmt_get_result($stmt);
 $gallery = [];
 while ($image = mysqli_fetch_assoc($galleryResult)) {
     $gallery[] = $image;
+}
+
+$avgRating = 0;
+$totalReviews = count($reviews);
+
+if ($totalReviews > 0) {
+    $ratingSum = 0;
+    foreach ($reviews as $review) {
+        $ratingSum += $review['rating'];
+    }
+    $avgRating = round($ratingSum / $totalReviews, 1);
 }
 ?>
 
@@ -712,14 +738,16 @@ while ($image = mysqli_fetch_assoc($galleryResult)) {
                         <span><?php echo htmlspecialchars($photographer['location']); ?></span>
                     </div>
                     <div class="rating">
-                        <?php
-                        // Placeholder for rating - in a real app, you'd calculate this from a ratings table
-                        $rating = 4.5; // Example rating
-                        echo str_repeat('★', floor($rating));
-                        echo ($rating - floor($rating) >= 0.5) ? '½' : '';
-                        echo str_repeat('☆', 5 - ceil($rating));
-                        ?>
-                        <span>(<?php echo $rating; ?>)</span>
+                        <?php for ($i = 1; $i <= 5; $i++): ?>
+                            <?php if ($i <= floor($avgRating)): ?>
+                                <i class="fas fa-star"></i>
+                            <?php elseif ($i - $avgRating > 0 && $i - $avgRating < 1): ?>
+                                <i class="fas fa-star-half-alt"></i>
+                            <?php else: ?>
+                                <i class="far fa-star"></i>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+                        <span>(<?php echo $avgRating; ?>)</span>
                     </div>
                     <p>Professional Photographer</p>
                     <div class="actions">
@@ -774,58 +802,61 @@ while ($image = mysqli_fetch_assoc($galleryResult)) {
         </div>
 
         <div class="reviews-section">
-            <h2>Client Reviews</h2>
-            <div class="reviews-container">
-                <?php
-                // Placeholder for reviews - in a real app, you'd fetch these from a database
-                $reviews = [
-                    [
-                        'name' => 'John Doe',
-                        'photo' => 'images/default-user.jpg',
-                        'rating' => 5,
-                        'text' => 'Amazing photographer! Captured our wedding beautifully.',
-                        'date' => '2 months ago'
-                    ],
-                    [
-                        'name' => 'Jane Smith',
-                        'photo' => 'images/default-user.jpg',
-                        'rating' => 4.5,
-                        'text' => 'Great experience working with this photographer. Very professional and creative.',
-                        'date' => '1 month ago'
-                    ],
-                    [
-                        'name' => 'Mike Johnson',
-                        'photo' => 'images/default-user.jpg',
-                        'rating' => 5,
-                        'text' => 'Excellent service and stunning photos. Would highly recommend!',
-                        'date' => '3 weeks ago'
-                    ]
-                ];
-
-                foreach ($reviews as $review) {
-                    echo '<div class="review-card">
-                            <div class="review-header">
-                                <div class="reviewer-photo">
-                                    <img src="' . $review['photo'] . '" alt="' . htmlspecialchars($review['name']) . '">
-                                </div>
-                                <div class="reviewer-info">
-                                    <h4>' . htmlspecialchars($review['name']) . '</h4>
-                                    <div class="review-rating">';
-                    
-                    echo str_repeat('★', floor($review['rating']));
-                    echo ($review['rating'] - floor($review['rating']) >= 0.5) ? '½' : '';
-                    echo str_repeat('☆', 5 - ceil($review['rating']));
-                    
-                    echo '</div>
-                                </div>
+    <h2>Client Reviews</h2>
+    <div class="reviews-container">
+        <?php if (!empty($reviews)): ?>
+            <?php foreach ($reviews as $review): ?>
+                <div class="review-card">
+                    <div class="review-header">
+                        <div class="reviewer-photo">
+                            <?php if (!empty($review['profile_pic'])): ?>
+                                <img src="<?php echo htmlspecialchars($review['profile_pic']); ?>" alt="<?php echo htmlspecialchars($review['name']); ?>">
+                            <?php else: ?>
+                                <img src="images/default-user.jpg" alt="<?php echo htmlspecialchars($review['name']); ?>">
+                            <?php endif; ?>
+                        </div>
+                        <div class="reviewer-info">
+                            <h4><?php echo htmlspecialchars($review['name']); ?></h4>
+                            <div class="review-rating">
+                                <?php
+                                // Show filled stars based on rating
+                                for ($i = 1; $i <= 5; $i++) {
+                                    if ($i <= $review['rating']) {
+                                        echo '<i class="fas fa-star"></i>';
+                                    } else {
+                                        echo '<i class="far fa-star"></i>';
+                                    }
+                                }
+                                ?>
                             </div>
-                            <div class="review-text">' . htmlspecialchars($review['text']) . '</div>
-                            <div class="review-date">' . htmlspecialchars($review['date']) . '</div>
-                          </div>';
-                }
-                ?>
-            </div>
-        </div>
+                        </div>
+                    </div>
+                    <div class="review-text"><?php echo htmlspecialchars($review['review_text']); ?></div>
+                    <div class="review-date">
+                        <?php 
+                        // Format the date
+                        $reviewDate = new DateTime($review['created_at']);
+                        $now = new DateTime();
+                        $interval = $reviewDate->diff($now);
+                        
+                        if ($interval->y > 0) {
+                            echo $interval->y . ' year' . ($interval->y > 1 ? 's' : '') . ' ago';
+                        } elseif ($interval->m > 0) {
+                            echo $interval->m . ' month' . ($interval->m > 1 ? 's' : '') . ' ago';
+                        } elseif ($interval->d > 0) {
+                            echo $interval->d . ' day' . ($interval->d > 1 ? 's' : '') . ' ago';
+                        } else {
+                            echo 'Today';
+                        }
+                        ?>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <p class="no-reviews">No reviews yet for this photographer.</p>
+        <?php endif; ?>
+    </div>
+</div>
 
         <div class="book-section" id="book-section">
             <h2>Book a Session</h2>

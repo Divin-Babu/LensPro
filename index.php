@@ -13,11 +13,14 @@ if (isset($_SESSION['userid'])) {
     $row = mysqli_fetch_assoc($result);
 }
 
-// Fetch photographers from database (limit to 8 random photographers)
-$photographerQuery = "SELECT u.user_id, u.name, u.profile_pic, p.bio, p.location 
+$photographerQuery = "SELECT u.user_id, u.name, u.profile_pic, p.bio, p.location,
+                     IFNULL(AVG(r.rating), 0) as average_rating,
+                     COUNT(r.review_id) as review_count
                      FROM tbl_user u 
                      JOIN tbl_photographer p ON u.user_id = p.photographer_id 
+                     LEFT JOIN tbl_reviews r ON u.user_id = r.photographer_id AND r.status = TRUE
                      WHERE u.role = 'photographer' AND u.status = TRUE
+                     GROUP BY u.user_id, u.name, u.profile_pic, p.bio, p.location
                      ORDER BY RAND() 
                      LIMIT 8";
 $photographerResult = mysqli_query($conn, $photographerQuery);
@@ -530,15 +533,31 @@ if ($photographerResult) {
                         <p><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($photographer['location']); ?></p>
                         <div class="rating">
                             <?php
-                            // Placeholder for rating - in a real app, you'd calculate this from a ratings table
-                            $rating = 4.5; // Example rating
-                            echo str_repeat('★', floor($rating));
-                            echo ($rating - floor($rating) >= 0.5) ? '½' : '';
-                            echo str_repeat('☆', 5 - ceil($rating));
+                            $rating = floatval($photographer['average_rating']);
+                            $reviewCount = intval($photographer['review_count']);
+
+                            for ($i = 1; $i <= floor($rating); $i++) {
+                                echo '<i class="fas fa-star"></i>';
+                            }
+
+                            if ($rating - floor($rating) >= 0.5) {
+                                echo '<i class="fas fa-star-half-alt"></i>';
+                            }
+
+                            $emptyStars = 5 - ceil($rating);
+                            for ($i = 1; $i <= $emptyStars; $i++) {
+                                echo '<i class="far fa-star"></i>';
+                            }
                             ?>
-                            <span>(<?php echo $rating; ?>)</span>
+                            <span>(<?php echo number_format($rating, 1); ?>) 
+                            <?php if ($reviewCount > 0): ?>
+                                · <?php echo $reviewCount; ?> review<?php echo $reviewCount != 1 ? 's' : ''; ?>
+                            <?php else: ?>
+                                · No reviews yet
+                            <?php endif; ?>
+                            </span>
                         </div>
-                        <a href="photographer-profileview.php?id=<?php echo $photographer['user_id']; ?>" class="cta-button">View Profile</a>
+                    <a href="photographer-profileview.php?id=<?php echo $photographer['user_id']; ?>" class="cta-button">View Profile</a>
                     </div>
                 </div>
             <?php endforeach; ?>

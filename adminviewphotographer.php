@@ -539,7 +539,7 @@ if (isset($_GET['removed']) && $_GET['removed'] === 'true') {
             <i class="fas fa-camera"></i>
             Photographers
         </a>
-        <a href="#" class="menu-item">
+        <a href="adminviewbooking.php" class="menu-item">
             <i class="fas fa-calendar-check"></i>
             Bookings
         </a>
@@ -547,14 +547,10 @@ if (isset($_GET['removed']) && $_GET['removed'] === 'true') {
             <i class="fas fa-list"></i> 
             Categories
         </a>
-        <a href="#" class="menu-item">
+        <a href="adminviewreview.php" class="menu-item">
             <i class="fas fa-star"></i>
             Reviews
         </a>
-        <!-- <a href="#" class="menu-item">
-            <i class="fas fa-cog"></i>
-            Settings
-        </a> -->
     </nav>
 
     <header class="header">

@@ -254,7 +254,7 @@ $ratingDescription = getRatingDescription($averageRating);
                     <div class="rating-description"><?php echo $ratingDescription; ?> Rating</div>
                 </div>
             </div>
-            <h1>Reviews (<?php echo $totalReviews; ?>)</h1>
+            <h1>Total Reviews : <?php echo $totalReviews; ?></h1>
         </div>
 
         <div class="reviews-list">

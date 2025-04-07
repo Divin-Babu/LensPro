@@ -327,7 +327,7 @@ if (isset($_GET['toggle_status'])) {
             <i class="fas fa-camera"></i>
             Photographers
         </a>
-        <a href="#" class="menu-item">
+        <a href="adminviewbooking.php" class="menu-item">
             <i class="fas fa-calendar-check"></i>
             Bookings
         </a>
@@ -335,22 +335,11 @@ if (isset($_GET['toggle_status'])) {
             <i class="fas fa-list"></i>
             Categories
         </a>
-        <a href="#" class="menu-item">
+        <a href="adminviewreview.php" class="menu-item">
             <i class="fas fa-star"></i>
             Reviews
         </a>
-        <!-- <a href="#" class="menu-item">
-            <i class="fas fa-cog"></i>
-            Settings
-        </a> -->
     </nav>
-
-    <!-- <header class="header">
-        <div class="search-bar">
-            <i class="fas fa-search"></i>
-            <input type="text" placeholder="Search categories...">
-        </div>
-    </header> -->
 
     <main class="main-content">
             <?php if (isset($_GET['update']) && $_GET['update'] == 'success'): ?>

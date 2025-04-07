@@ -6,6 +6,8 @@ if ($_SESSION['role'] !== 'admin') {
     header('Location: login.php');
     exit();
 }
+
+// Functions to fetch actual data from database
 function getPendingPhotographers($conn) {
     $sql = "SELECT u.*, p.bio, p.location, p.category, p.approval_status, p.id_proof 
             FROM tbl_user u 
@@ -16,6 +18,121 @@ function getPendingPhotographers($conn) {
     $result = $conn->query($sql);
     return $result;
 }
+
+function getTotalPhotographers($conn) {
+    $sql = "SELECT COUNT(*) as total FROM tbl_user WHERE role = 'photographer'";
+    $result = $conn->query($sql);
+    $row = $result->fetch_assoc();
+    return $row['total'];
+}
+
+function getActiveBookings($conn) {
+    $sql = "SELECT COUNT(*) as active FROM tbl_booking WHERE status = 'confirmed'";
+    $result = $conn->query($sql);
+    $row = $result->fetch_assoc();
+    return $row['active'];
+}
+
+function getTotalRevenue($conn) {
+    $sql = "SELECT SUM(total_amt) as revenue FROM tbl_booking WHERE status IN ('completed', 'confirmed')";
+    $result = $conn->query($sql);
+    $row = $result->fetch_assoc();
+    return $row['revenue'] ?: 0;
+}
+
+function getAverageRating($conn) {
+    $sql = "SELECT AVG(rating) as avg_rating FROM tbl_reviews";
+    $result = $conn->query($sql);
+    $row = $result->fetch_assoc();
+    return number_format($row['avg_rating'] ?: 0, 1);
+}
+
+function getRecentBookings($conn, $limit = 5) {
+    $sql = "SELECT b.booking_id, u.name as client_name, p.name as photographer_name, 
+            b.event_date, b.total_amt, b.status
+            FROM tbl_booking b
+            JOIN tbl_user u ON b.user_id = u.user_id
+            JOIN tbl_user p ON b.photographer_id = p.user_id
+            ORDER BY b.booking_date DESC
+            LIMIT $limit";
+    
+    $result = $conn->query($sql);
+    return $result;
+}
+
+function getTopPhotographers($conn, $limit = 5) {
+    $sql = "SELECT u.user_id, u.name, u.profile_pic, c.category_name,
+            AVG(r.rating) as avg_rating
+            FROM tbl_user u
+            JOIN tbl_photographer p ON u.user_id = p.photographer_id
+            LEFT JOIN tbl_reviews r ON u.user_id = r.photographer_id
+            LEFT JOIN tbl_categories c ON p.category LIKE CONCAT('%', c.category_id, '%')
+            WHERE u.role = 'photographer'
+            GROUP BY u.user_id
+            ORDER BY avg_rating DESC
+            LIMIT $limit";
+    
+    $result = $conn->query($sql);
+    return $result;
+}
+
+function getMonthlyGrowth($conn, $type) {
+    $currentMonth = date('m');
+    $previousMonth = $currentMonth - 1 ?: 12;
+    
+    if ($type === 'photographers') {
+        $sql = "SELECT 
+                (SELECT COUNT(*) FROM tbl_user 
+                WHERE role = 'photographer' AND MONTH(created_at) = $currentMonth) as current,
+                (SELECT COUNT(*) FROM tbl_user 
+                WHERE role = 'photographer' AND MONTH(created_at) = $previousMonth) as previous";
+    } elseif ($type === 'bookings') {
+        $sql = "SELECT 
+                (SELECT COUNT(*) FROM tbl_booking 
+                WHERE MONTH(booking_date) = $currentMonth) as current,
+                (SELECT COUNT(*) FROM tbl_booking 
+                WHERE MONTH(booking_date) = $previousMonth) as previous";
+    } elseif ($type === 'revenue') {
+        $sql = "SELECT 
+                (SELECT SUM(total_amt) FROM tbl_booking 
+                WHERE MONTH(booking_date) = $currentMonth) as current,
+                (SELECT SUM(total_amt) FROM tbl_booking 
+                WHERE MONTH(booking_date) = $previousMonth) as previous";
+    } elseif ($type === 'rating') {
+        $sql = "SELECT 
+                (SELECT AVG(rating) FROM tbl_reviews 
+                WHERE MONTH(created_at) = $currentMonth) as current,
+                (SELECT AVG(rating) FROM tbl_reviews 
+                WHERE MONTH(created_at) = $previousMonth) as previous";
+    }
+    
+    $result = $conn->query($sql);
+    $row = $result->fetch_assoc();
+    
+    $current = $row['current'] ?: 0;
+    $previous = $row['previous'] ?: 1; // Avoid division by zero
+    
+    $percentChange = (($current - $previous) / $previous) * 100;
+    
+    return [
+        'percent' => round($percentChange, 1),
+        'direction' => $percentChange >= 0 ? 'up' : 'down'
+    ];
+}
+
+// Fetch actual data
+$totalPhotographers = getTotalPhotographers($conn);
+$activeBookings = getActiveBookings($conn);
+$totalRevenue = getTotalRevenue($conn);
+$averageRating = getAverageRating($conn);
+
+$photographerGrowth = getMonthlyGrowth($conn, 'photographers');
+$bookingGrowth = getMonthlyGrowth($conn, 'bookings');
+$revenueGrowth = getMonthlyGrowth($conn, 'revenue');
+$ratingGrowth = getMonthlyGrowth($conn, 'rating');
+
+$recentBookings = getRecentBookings($conn);
+$topPhotographers = getTopPhotographers($conn);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -61,15 +178,15 @@ function getPendingPhotographers($conn) {
         }
 
         .modal-content {
-    position: relative;
-    background-color: #fefefe;
-    margin: 2% auto; /* Reduced from 5% to show more content */
-    padding: 25px;
-    border-radius: 10px;
-    width: 85%; /* Increased from 70% */
-    max-width: 1000px; /* Increased from 800px */
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    animation: modalopen 0.3s;
+        position: relative;
+        background-color: #fefefe;
+        margin: 2% auto; 
+        padding: 25px;
+        border-radius: 10px;
+        width: 85%; 
+        max-width: 1000px; 
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        animation: modalopen 0.3s;
 }
 
         @keyframes modalopen {
@@ -205,38 +322,6 @@ function getPendingPhotographers($conn) {
             z-index: 100;
         }
 
-        /* .search-bar {
-            display: flex;
-            align-items: center;
-            background: #f5f6fa;
-            border-radius: 8px;
-            padding: 0.5rem 1rem;
-            width: 300px;
-        }
-
-        .search-bar input {
-            border: none;
-            background: none;
-            outline: none;
-            padding: 0.2rem;
-            width: 100%;
-            margin-left: 0.5rem;
-        } */
-
-        .admin-profile {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            cursor: pointer;
-        }
-
-        .admin-profile img {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            object-fit: cover;
-        }
-
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -328,7 +413,7 @@ function getPendingPhotographers($conn) {
             font-size: 0.85rem;
         }
 
-        .status.active {
+        .status.active, .status.confirmed, .status.completed {
             background: rgba(46, 204, 113, 0.1);
             color: var(--success-color);
         }
@@ -336,6 +421,11 @@ function getPendingPhotographers($conn) {
         .status.pending {
             background: rgba(241, 196, 15, 0.1);
             color: var(--warning-color);
+        }
+
+        .status.cancelled, .status.rejected {
+            background: rgba(231, 76, 60, 0.1);
+            color: var(--accent-color);
         }
 
         .photographer-list {
@@ -449,6 +539,17 @@ function getPendingPhotographers($conn) {
             background: #f0f0f0;
         }
 
+        .view-all {
+            color: var(--secondary-color);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .rating {
+            font-weight: 600;
+            color: var(--warning-color);
+        }
 
         @media (max-width: 1024px) {
             .content-grid {
@@ -493,7 +594,7 @@ function getPendingPhotographers($conn) {
             <i class="fas fa-camera"></i>
             Photographers
         </a>
-        <a href="#" class="menu-item">
+        <a href="adminviewbooking.php" class="menu-item">
             <i class="fas fa-calendar-check"></i>
             Bookings
         </a>
@@ -501,111 +602,110 @@ function getPendingPhotographers($conn) {
             <i class="fas fa-list"></i> 
             Categories
         </a>
-        <a href="#" class="menu-item">
+        <a href="adminviewreview.php" class="menu-item">
             <i class="fas fa-star"></i>
             Reviews
         </a>
-        <!-- <a href="#" class="menu-item">
-            <i class="fas fa-cog"></i>
-            Settings
-        </a> -->
     </nav>
-
+ 
     <header class="header">
         <div class="search-bar">
-            <!-- <i class="fas fa-search"></i>
-            <input type="text" placeholder="Search..."> -->
+            <!-- Future implementation for search functionality -->
         </div>
         <div class="admin-profile" onclick="toggleDropdown()">
-    <img src="images/adminimg.jpg" alt="Admin">
-    <span>Admin</span>
-    <i class="fas fa-chevron-down"></i>
-    <div class="dropdown-menu" id="dropdownMenu">
-    <a href="logout.php">
-        <i class="fas fa-sign-out-alt"></i> Logout
-    </a>
-    </div>
-</div>
-
+            <img src="images/adminimg.jpg" alt="Admin">
+            <span>Admin</span>
+            <i class="fas fa-chevron-down"></i>
+            <div class="dropdown-menu" id="dropdownMenu">
+                <a href="logout.php">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </div>
     </header>
 
     <main class="main-content">
-    <div class="card">
-        <div class="card-header">
-            <h2 class="card-title">Pending Photographer Approvals</h2>
-        </div>
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Location</th>
-                    <th>Categories</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-    <?php
-    $pending_photographers = getPendingPhotographers($conn);
-    while($row = $pending_photographers->fetch_assoc()) {
-        echo "<tr>";
-        echo "<td>{$row['name']}</td>";
-        echo "<td>{$row['email']}</td>";
-        echo "<td>{$row['phno']}</td>";
-        echo "<td>{$row['location']}</td>";
-        echo "<td>{$row['category']}</td>";
-        echo "<td>
-                <button onclick=\"viewIdProof('{$row['id_proof']}')\" class='view-btn'>View ID</button>
-                <button onclick=\"approvePhotographer({$row['user_id']})\" class='approve-btn'>Approve</button>
-                <button onclick=\"rejectPhotographer({$row['user_id']})\" class='reject-btn'>Reject</button>
-            </td>";
-        echo "</tr>";
-    }
-    ?>
-</tbody>
-        </table>
-    </div>
+        <!-- Stats Cards -->
         <div class="stats-grid">
             <div class="stat-card">
-                <!-- <h3>Total Photographers</h3>
-                <div class="value">248</div>
-                <div class="trend up">
-                    <i class="fas fa-arrow-up"></i>
-                    12% this month
-                </div> -->
+                <h3>Total Photographers</h3>
+                <div class="value"><?php echo $totalPhotographers; ?></div>
+                <div class="trend <?php echo $photographerGrowth['direction']; ?>">
+                    <i class="fas fa-arrow-<?php echo $photographerGrowth['direction']; ?>"></i>
+                    <?php echo abs($photographerGrowth['percent']); ?>% this month
+                </div>
             </div>
             <div class="stat-card">
-                <!-- <h3>Active Bookings</h3>
-                <div class="value">156</div>
-                <div class="trend up">
-                    <i class="fas fa-arrow-up"></i>
-                    8% this week
-                </div> -->
+                <h3>Active Bookings</h3>
+                <div class="value"><?php echo $activeBookings; ?></div>
+                <div class="trend <?php echo $bookingGrowth['direction']; ?>">
+                    <i class="fas fa-arrow-<?php echo $bookingGrowth['direction']; ?>"></i>
+                    <?php echo abs($bookingGrowth['percent']); ?>% this week
+                </div>
             </div>
             <div class="stat-card">
-                <!-- <h3>Total Revenue</h3>
-                <div class="value">$52,945</div>
-                <div class="trend up">
-                    <i class="fas fa-arrow-up"></i>
-                    15% this month
-                </div> -->
+                <h3>Total Revenue</h3>
+                <div class="value">$<?php echo number_format($totalRevenue, 2); ?></div>
+                <div class="trend <?php echo $revenueGrowth['direction']; ?>">
+                    <i class="fas fa-arrow-<?php echo $revenueGrowth['direction']; ?>"></i>
+                    <?php echo abs($revenueGrowth['percent']); ?>% this month
+                </div>
             </div>
             <div class="stat-card">
-                <!-- <h3>Average Rating</h3>
-                <div class="value">4.8</div>
-                <div class="trend down">
-                    <i class="fas fa-arrow-down"></i>
-                    2% this month
-                </div> -->
+                <h3>Average Rating</h3>
+                <div class="value"><?php echo $averageRating; ?></div>
+                <div class="trend <?php echo $ratingGrowth['direction']; ?>">
+                    <i class="fas fa-arrow-<?php echo $ratingGrowth['direction']; ?>"></i>
+                    <?php echo abs($ratingGrowth['percent']); ?>% this month
+                </div>
             </div>
         </div>
 
-        <div class="content-grid">
+        <!-- Pending Photographer Approvals -->
+        <?php
+        $pending_photographers = getPendingPhotographers($conn);
+        if ($pending_photographers->num_rows > 0) { ?>
             <div class="card">
-                <!-- <div class="card-header">
+                <div class="card-header">
+                    <h2 class="card-title">Pending Photographer Approvals</h2>
+                </div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Location</th>
+                            <th>Categories</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php while($row = $pending_photographers->fetch_assoc()) { ?>
+                            <tr>
+                                <td><?php echo $row['name']; ?></td>
+                                <td><?php echo $row['email']; ?></td>
+                                <td><?php echo $row['phno']; ?></td>
+                                <td><?php echo $row['location']; ?></td>
+                                <td><?php echo $row['category']; ?></td>
+                                <td>
+                                    <button onclick="viewIdProof('<?php echo $row['id_proof']; ?>')" class="view-btn">View ID</button>
+                                    <button onclick="approvePhotographer(<?php echo $row['user_id']; ?>)" class="approve-btn">Approve</button>
+                                    <button onclick="rejectPhotographer(<?php echo $row['user_id']; ?>)" class="reject-btn">Reject</button>
+                                </td>
+                            </tr>
+                        <?php } ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php } ?>
+
+        <div class="content-grid">
+            <!-- Recent Bookings -->
+            <div class="card">
+                <div class="card-header">
                     <h2 class="card-title">Recent Bookings</h2>
-                    <a href="#" class="view-all">View All</a>
+                    <a href="adminviewbooking.php" class="view-all">View All</a>
                 </div>
                 <table class="table">
                     <thead>
@@ -618,170 +718,151 @@ function getPendingPhotographers($conn) {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td>John Doe</td>
-                            <td>Anna Warner</td>
-                            <td>Feb 18, 2025</td>
-                            <td>$450</td>
-                            <td><span class="status active">Confirmed</span></td>
-                        </tr>
-                        <tr>
-                            <td>Sarah Smith</td>
-                            <td>David Lee</td>
-                            <td>Feb 17, 2025</td>
-                            <td>$850</td>
-                            <td><span class="status pending">Pending</span></td>
-                        </tr>
-                        <tr>
-                            <td>Mike Johnson</td>
-                            <td>Emma Williams</td>
-                            <td>Feb 17, 2025</td>
-                            <td>$600</td>
-                            <td><span class="status active">Confirmed</span></td>
-                        </tr>
+                        <?php while($booking = $recentBookings->fetch_assoc()) { ?>
+                            <tr>
+                                <td><?php echo $booking['client_name']; ?></td>
+                                <td><?php echo $booking['photographer_name']; ?></td>
+                                <td><?php echo date('M d, Y', strtotime($booking['event_date'])); ?></td>
+                                <td>$<?php echo number_format($booking['total_amt'], 2); ?></td>
+                                <td><span class="status <?php echo strtolower($booking['status']); ?>"><?php echo ucfirst($booking['status']); ?></span></td>
+                            </tr>
+                        <?php } ?>
                     </tbody>
-                </table> -->
+                </table>
             </div>
 
+            <!-- Top Photographers -->
             <div class="card">
                 <div class="card-header">
-                    <!-- <h2 class="card-title">Top Photographers</h2>
-                    <a href="#" class="view-all">View All</a>
+                    <h2 class="card-title">Top Photographers</h2>
+                    <a href="adminviewphotographer.php" class="view-all">View All</a>
                 </div>
                 <div class="photographer-list">
-                    <div class="photographer-item">
-                        <img src="/api/placeholder/40/40" alt="Photographer">
-                        <div class="photographer-info">
-                            <h4>Anna Warner</h4>
-                            <p>Commercial Photography</p>
+                    <?php while($photographer = $topPhotographers->fetch_assoc()) { ?>
+                        <div class="photographer-item">
+                            <?php if ($photographer['profile_pic']) { ?>
+                                <img src="<?php echo $photographer['profile_pic']; ?>" alt="<?php echo $photographer['name']; ?>">
+                            <?php } else { ?>
+                                <img src="images/default-photographer.jpg" alt="Default Profile">
+                            <?php } ?>
+                            <div class="photographer-info">
+                                <h4><?php echo $photographer['name']; ?></h4>
+                                <p><?php echo $photographer['category_name'] ?: 'Various Categories'; ?></p>
+                            </div>
+                            <div class="rating"><?php echo number_format($photographer['avg_rating'], 1); ?> ★</div>
                         </div>
-                        <div class="rating">4.9 ★</div>
-                    </div>
-                    <div class="photographer-item">
-                        <img src="/api/placeholder/40/40" alt="Photographer">
-                        <div class="photographer-info">
-                            <h4>David Lee</h4>
-                            <p>Wedding Photography</p>
-                        </div>
-                        <div class="rating">4.8 ★</div>
-                    </div>
-                    <div class="photographer-item">
-                        <img src="/api/placeholder/40/40" alt="Photographer">
-                        <div class="photographer-info">
-                            <h4>Emma Williams</h4>
-                            <p>Portrait Photography</p>
-                        </div>
-                        <div class="rating">4.7 ★</div>
-                    </div>-->
+                    <?php } ?>
                 </div>
             </div>
         </div>
+
         <!-- Modal for viewing ID proof -->
-<div id="idProofModal" class="modal">
-    <div class="modal-content">
-        <span class="close-modal" onclick="closeModal()">&times;</span>
-        <div class="modal-header">
-            <h2>Photographer ID Proof</h2>
+        <div id="idProofModal" class="modal">
+            <div class="modal-content">
+                <span class="close-modal" onclick="closeModal()">&times;</span>
+                <div class="modal-header">
+                    <h2>Photographer ID Proof</h2>
+                </div>
+                <div class="modal-body" id="idProofContent">
+                    <!-- Content will be loaded here -->
+                </div>
+            </div>
         </div>
-        <div class="modal-body" id="idProofContent">
-            <!-- Content will be loaded here -->
-        </div>
-    </div>
-</div>
-</main>
-<script>
-    
-function toggleDropdown() {
-    var menu = document.getElementById("dropdownMenu");
-    menu.style.display = menu.style.display === "block" ? "none" : "block";
-}
+    </main>
 
-// Close dropdown when clicking outside
-document.addEventListener("click", function(event) {
-    var profile = document.querySelector(".admin-profile");
-    var menu = document.getElementById("dropdownMenu");
+    <script>
+        function toggleDropdown() {
+            var menu = document.getElementById("dropdownMenu");
+            menu.style.display = menu.style.display === "block" ? "none" : "block";
+        }
 
-    if (!profile.contains(event.target)) {
-        menu.style.display = "none";
-    }
-});
-// Add this JavaScript to adminpanel.php
-function approvePhotographer(photographerId) {
-    updateStatus(photographerId, 'approved');
-}
+        // Close dropdown when clicking outside
+        document.addEventListener("click", function(event) {
+            var profile = document.querySelector(".admin-profile");
+            var menu = document.getElementById("dropdownMenu");
 
-function rejectPhotographer(photographerId) {
-    if(confirm('Are you sure you want to reject this photographer?')) {
-        updateStatus(photographerId, 'rejected');
-    }
-}
-function updateStatus(id, status) {
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", "update_photographer_status.php", true);
-    xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+            if (!profile.contains(event.target)) {
+                menu.style.display = "none";
+            }
+        });
 
-    xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4) {
-            if (xhr.status === 200) {
-                if (xhr.responseText.trim() === "success") {
-                    if(status=='approved'){
-                    alert("Approved photographer successfully!");
-                    location.reload();
-                    }
-                    else{
-                    alert("Rejected photographer successfully!");
-                    location.reload();
-                    }
-                } else {
-                    alert("Error: " + xhr.responseText);
-                }
-            } else {
-                alert("Server error. Please try again.");
+        function approvePhotographer(photographerId) {
+            updateStatus(photographerId, 'approved');
+        }
+
+        function rejectPhotographer(photographerId) {
+            if(confirm('Are you sure you want to reject this photographer?')) {
+                updateStatus(photographerId, 'rejected');
             }
         }
-    };
 
-    xhr.send("photographer_id=" + id + "&status=" + status);
-}
-// Add to your existing <script> section
-function viewIdProof(idProofPath) {
-    var modal = document.getElementById("idProofModal");
-    var contentArea = document.getElementById("idProofContent");
-    
-    if (!idProofPath) {
-        contentArea.innerHTML = "<p>No ID proof available</p>";
-        modal.style.display = "block";
-        return;
-    }
-    
-    // Determine the file type based on extension
-    var fileExtension = idProofPath.split('.').pop().toLowerCase();
-    
-    if (fileExtension === 'pdf') {
-        contentArea.innerHTML = `<object data="${idProofPath}" type="application/pdf" width="100%" height="500px">
-            <p>Your browser doesn't support PDFs. 
-            <a href="${idProofPath}" target="_blank">Download Instead</a></p>
-        </object>`;
-    } else if (['jpg', 'jpeg', 'png'].includes(fileExtension)) {
-        contentArea.innerHTML = `<img src="${idProofPath}" alt="Photographer ID Proof">`;
-    } else {
-        contentArea.innerHTML = `<p>Unsupported file type. <a href="${idProofPath}" target="_blank">Download Instead</a></p>`;
-    }
-    
-    modal.style.display = "block";
-}
+        function updateStatus(id, status) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "update_photographer_status.php", true);
+            xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
 
-function closeModal() {
-    var modal = document.getElementById("idProofModal");
-    modal.style.display = "none";
-}
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4) {
+                    if (xhr.status === 200) {
+                        if (xhr.responseText.trim() === "success") {
+                            if(status=='approved'){
+                                alert("Approved photographer successfully!");
+                                location.reload();
+                            }
+                            else{
+                                alert("Rejected photographer successfully!");
+                                location.reload();
+                            }
+                        } else {
+                            alert("Error: " + xhr.responseText);
+                        }
+                    } else {
+                        alert("Server error. Please try again.");
+                    }
+                }
+            };
 
-window.onclick = function(event) {
-    var modal = document.getElementById("idProofModal");
-    if (event.target == modal) {
-        modal.style.display = "none";
-    }
-} 
-</script>
+            xhr.send("photographer_id=" + id + "&status=" + status);
+        }
+
+        function viewIdProof(idProofPath) {
+            var modal = document.getElementById("idProofModal");
+            var contentArea = document.getElementById("idProofContent");
+            
+            if (!idProofPath) {
+                contentArea.innerHTML = "<p>No ID proof available</p>";
+                modal.style.display = "block";
+                return;
+            }
+            
+            // Determine the file type based on extension
+            var fileExtension = idProofPath.split('.').pop().toLowerCase();
+            
+            if (fileExtension === 'pdf') {
+                contentArea.innerHTML = `<object data="${idProofPath}" type="application/pdf" width="100%" height="500px">
+                    <p>Your browser doesn't support PDFs. 
+                    <a href="${idProofPath}" target="_blank">Download Instead</a></p>
+                </object>`;
+            } else if (['jpg', 'jpeg', 'png'].includes(fileExtension)) {
+                contentArea.innerHTML = `<img src="${idProofPath}" alt="Photographer ID Proof">`;
+            } else {
+                contentArea.innerHTML = `<p>Unsupported file type. <a href="${idProofPath}" target="_blank">Download Instead</a></p>`;
+            }
+            
+            modal.style.display = "block";
+        }
+
+        function closeModal() {
+            var modal = document.getElementById("idProofModal");
+            modal.style.display = "none";
+        }
+
+        window.onclick = function(event) {
+            var modal = document.getElementById("idProofModal");
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+    </script>
 </body>
 </html>
