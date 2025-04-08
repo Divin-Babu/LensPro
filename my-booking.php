@@ -11,18 +11,116 @@ if (!isset($_SESSION['userid'])) {
 // Handle booking cancellation
 if (isset($_POST['cancel_booking']) && isset($_POST['booking_id'])) {
     $booking_id = $_POST['booking_id'];
-    $update_sql = "UPDATE tbl_booking SET status = 'cancelled' WHERE booking_id = ? AND user_id = ?";
-    $stmt = mysqli_prepare($conn, $update_sql);
-    mysqli_stmt_bind_param($stmt, "ii", $booking_id, $_SESSION['userid']);
     
-    if (mysqli_stmt_execute($stmt)) {
-        $_SESSION['message'] = "Booking successfully cancelled.";
-        $_SESSION['message_type'] = "success";
+    // First, check if payment exists for this booking
+    $payment_check_sql = "SELECT p.payment_id, p.payment_at, b.total_amt 
+                         FROM tbl_payment p
+                         JOIN tbl_booking b ON p.booking_id = b.booking_id
+                         WHERE p.booking_id = ? AND b.user_id = ?";
+    $check_stmt = mysqli_prepare($conn, $payment_check_sql);
+    mysqli_stmt_bind_param($check_stmt, "ii", $booking_id, $_SESSION['userid']);
+    mysqli_stmt_execute($check_stmt);
+    $payment_result = mysqli_stmt_get_result($check_stmt);
+    
+    if (mysqli_num_rows($payment_result) > 0) {
+        // Payment exists, calculate refund based on time elapsed
+        $payment_data = mysqli_fetch_assoc($payment_result);
+        $payment_date = new DateTime($payment_data['payment_at']);
+        $current_date = new DateTime();
+        $days_difference = $current_date->diff($payment_date)->days;
+        $refund_percentage = 0;
+        
+        // Define refund policy based on days elapsed
+        if ($days_difference == 0) {
+            // Same day cancellation - 90% refund
+            $refund_percentage = 0.90;
+        } elseif ($days_difference == 1) {
+            // Next day cancellation - 75% refund
+            $refund_percentage = 0.75;
+        } elseif ($days_difference <= 3) {
+            // 2-3 days after payment - 50% refund
+            $refund_percentage = 0.50;
+        } elseif ($days_difference <= 7) {
+            // 4-7 days after payment - 25% refund
+            $refund_percentage = 0.25;
+        } else {
+            // More than a week - no refund
+            $refund_percentage = 0;
+        }
+        
+        $original_amount = $payment_data['total_amt'];
+        $refund_amount = $original_amount * $refund_percentage;
+        
+        // Begin transaction
+        mysqli_begin_transaction($conn);
+        
+        try {
+            // Update booking status to cancelled
+            $update_booking_sql = "UPDATE tbl_booking SET status = 'cancelled' WHERE booking_id = ? AND user_id = ?";
+            $update_stmt = mysqli_prepare($conn, $update_booking_sql);
+            mysqli_stmt_bind_param($update_stmt, "ii", $booking_id, $_SESSION['userid']);
+            mysqli_stmt_execute($update_stmt);
+            
+            // Create a refund record - We'll add a new table for this
+            // First check if the table exists, if not create it
+            $check_table_sql = "SHOW TABLES LIKE 'tbl_refunds'";
+            $table_result = mysqli_query($conn, $check_table_sql);
+            
+            if (mysqli_num_rows($table_result) == 0) {
+                // Create the refunds table if it doesn't exist
+                $create_table_sql = "CREATE TABLE tbl_refunds (
+                    refund_id INT AUTO_INCREMENT PRIMARY KEY,
+                    payment_id INT,
+                    booking_id INT,
+                    original_amount DECIMAL(10,2) NOT NULL,
+                    refund_amount DECIMAL(10,2) NOT NULL,
+                    refund_percentage DECIMAL(5,2) NOT NULL,
+                    refund_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    status ENUM('pending', 'processed', 'completed') DEFAULT 'pending',
+                    FOREIGN KEY (payment_id) REFERENCES tbl_payment(payment_id),
+                    FOREIGN KEY (booking_id) REFERENCES tbl_booking(booking_id)
+                )";
+                mysqli_query($conn, $create_table_sql);
+            }
+            
+            // Insert the refund record
+            $insert_refund_sql = "INSERT INTO tbl_refunds (payment_id, booking_id, original_amount, refund_amount, refund_percentage) 
+                                 VALUES (?, ?, ?, ?, ?)";
+            $refund_stmt = mysqli_prepare($conn, $insert_refund_sql);
+            mysqli_stmt_bind_param($refund_stmt, "iiddd", $payment_data['payment_id'], $booking_id, $original_amount, $refund_amount, $refund_percentage);
+            mysqli_stmt_execute($refund_stmt);
+            
+            // Commit transaction
+            mysqli_commit($conn);
+            
+            $_SESSION['message'] = "Booking cancelled successfully. " . 
+                                  ($refund_percentage > 0 ? 
+                                   "You will receive the refund amount soon." : 
+                                   "No refund is applicable as per the cancellation policy.");
+            $_SESSION['message_type'] = "success";
+            
+        } catch (Exception $e) {
+            // Rollback on error
+            mysqli_rollback($conn);
+            $_SESSION['message'] = "Error processing cancellation. Please try again.";
+            $_SESSION['message_type'] = "error";
+        }
     } else {
-        $_SESSION['message'] = "Error cancelling booking. Please try again.";
-        $_SESSION['message_type'] = "error";
+        // No payment found, simple cancellation
+        $update_sql = "UPDATE tbl_booking SET status = 'cancelled' WHERE booking_id = ? AND user_id = ?";
+        $stmt = mysqli_prepare($conn, $update_sql);
+        mysqli_stmt_bind_param($stmt, "ii", $booking_id, $_SESSION['userid']);
+        
+        if (mysqli_stmt_execute($stmt)) {
+            $_SESSION['message'] = "Booking successfully cancelled.";
+            $_SESSION['message_type'] = "success";
+        } else {
+            $_SESSION['message'] = "Error cancelling booking. Please try again.";
+            $_SESSION['message_type'] = "error";
+        }
+        mysqli_stmt_close($stmt);
     }
-    mysqli_stmt_close($stmt);
+    
     header('Location: my-booking.php');
     exit();
 }
@@ -55,11 +153,21 @@ $booking_query = "
         b.booking_date,
         b.photographer_id AS photographer_id,
         p.name AS photographer_name,
-        p.profile_pic AS photographer_pic
+        p.profile_pic AS photographer_pic,
+        CASE 
+            WHEN pay.payment_id IS NOT NULL THEN 1
+            ELSE 0
+        END AS has_payment,
+        CASE 
+            WHEN pay.payment_id IS NOT NULL THEN pay.payment_at
+            ELSE NULL
+        END AS payment_date
     FROM 
         tbl_booking b 
     JOIN 
         tbl_user p ON b.photographer_id = p.user_id
+    LEFT JOIN
+        tbl_payment pay ON b.booking_id = pay.booking_id
     WHERE 
         b.user_id = ?
     AND (
@@ -79,11 +187,12 @@ mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 $bookings = mysqli_fetch_all($result, MYSQLI_ASSOC);
 
-// Check existing reviews
+// Check existing reviews - Change this part to include booking_id
 $existing_reviews_query = "
     SELECT 
         r.review_id, 
         r.photographer_id,
+        r.booking_id,
         r.rating, 
         r.review_text, 
         r.created_at 
@@ -96,8 +205,21 @@ mysqli_stmt_execute($reviews_stmt);
 $reviews_result = mysqli_stmt_get_result($reviews_stmt);
 $existing_reviews = [];
 while ($review = mysqli_fetch_assoc($reviews_result)) {
-    $existing_reviews[$review['photographer_id']] = $review;
+    // Store reviews indexed by both photographer_id AND booking_id
+    if (!isset($existing_reviews[$review['photographer_id']])) {
+        $existing_reviews[$review['photographer_id']] = [];
+    }
+    $existing_reviews[$review['photographer_id']][$review['booking_id']] = $review;
 }
+
+// Fetch refund policy for display
+$refund_policy = [
+    ['days' => 0, 'percentage' => 90, 'description' => 'Same day cancellation'],
+    ['days' => 1, 'percentage' => 75, 'description' => 'Next day cancellation'],
+    ['days' => 3, 'percentage' => 50, 'description' => '2-3 days after payment'],
+    ['days' => 7, 'percentage' => 25, 'description' => '4-7 days after payment'],
+    ['days' => 999, 'percentage' => 0, 'description' => 'More than 7 days after payment']
+];
 ?>
 
 <!DOCTYPE html>
@@ -341,6 +463,22 @@ while ($review = mysqli_fetch_assoc($reviews_result)) {
             gap: 10px;
             margin-top: 15px;
         }
+        .btn-secondary {
+                background-color: #7f8c8d;
+                color: white;
+            }
+
+            .btn-secondary:hover {
+                background-color: #95a5a6;
+            }
+
+            .action-buttons {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 10px;
+                margin-top: 15px;
+            }
 
         .btn {
             padding: 10px 15px;
@@ -426,6 +564,85 @@ while ($review = mysqli_fetch_assoc($reviews_result)) {
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+        
+        /* Modal Styles for Refund Policy */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 600px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            animation: modalFadeIn 0.3s;
+        }
+
+        @keyframes modalFadeIn {
+            from {opacity: 0; transform: translateY(-50px);}
+            to {opacity: 1; transform: translateY(0);}
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            transition: color 0.3s;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .policy-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .policy-table th, .policy-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .policy-table th {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .policy-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .info-badge {
+            display: inline-block;
+            background-color: var(--secondary-color);
+            color: white;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 20px;
+            font-size: 12px;
+            margin-left: 5px;
+            cursor: pointer;
+        }
 
         /* Responsive Design */
         @media (max-width: 768px) {
@@ -453,6 +670,11 @@ while ($review = mysqli_fetch_assoc($reviews_result)) {
             .section-title {
                 font-size: 2rem;
             }
+            
+            .modal-content {
+                width: 95%;
+                margin: 30% auto;
+            }
         }
 
         /* Scrollbar Styling */
@@ -471,6 +693,19 @@ while ($review = mysqli_fetch_assoc($reviews_result)) {
 
         ::-webkit-scrollbar-thumb:hover {
             background: var(--primary-color);
+        }
+        
+        /* Add badge for bookings with payment */
+        .payment-badge {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            background-color: #6c5ce7;
+            color: white;
         }
     </style>
 </head>
@@ -517,7 +752,9 @@ while ($review = mysqli_fetch_assoc($reviews_result)) {
             </a>
         </div>
 
-        <h1 class="section-title">My Bookings</h1>
+        <h1 class="section-title">
+            My Bookings <span class="info-badge" id="show-policy" title="Show Cancellation Policy">?</span>
+        </h1>
 
         <?php
         if (isset($_SESSION['message'])) {
@@ -544,12 +781,21 @@ while ($review = mysqli_fetch_assoc($reviews_result)) {
                         ?>
                         <img src="<?php echo $photographer_pic; ?>" alt="Photographer" class="photographer-avatar">
                         
+                        <?php if ($booking['has_payment']): ?>
+                            <div class="payment-badge">
+                                <i class="fas fa-check-circle"></i> Paid
+                            </div>
+                        <?php endif; ?>
+                        
                         <div class="booking-details">
                             <h3><?php echo htmlspecialchars($booking['photographer_name']); ?></h3>
                             <p><strong>Session Type:</strong> <?php echo htmlspecialchars($booking['session_type']); ?></p>
                             <p><strong>Event Date:</strong> <?php echo date('F j, Y', strtotime($booking['event_date'])); ?></p>
                             <p><strong>Location:</strong> <?php echo htmlspecialchars($booking['location']); ?></p>
                             <p><strong>Booked on:</strong> <?php echo date('F j, Y, g:i a', strtotime($booking['booking_date'])); ?></p>
+                            <?php if ($booking['has_payment']): ?>
+                                <p><strong>Amount Paid:</strong> ₹<?php echo number_format($booking['total_amt'], 2); ?></p>
+                            <?php endif; ?>
                         </div>
 
                         <div class="booking-status status-<?php echo strtolower($booking['status']); ?>">
@@ -557,8 +803,8 @@ while ($review = mysqli_fetch_assoc($reviews_result)) {
                         </div>
 
                         <div class="action-buttons">
-                            <?php if ($booking['status'] == 'pending'): ?>
-                                <form method="POST" onsubmit="return confirm('Are you sure you want to cancel this booking?');">
+                            <?php if ($booking['status'] == 'pending' || $booking['status'] == 'confirmed'): ?>
+                                <form method="POST" onsubmit="return confirm('Are you sure you want to cancel this booking? <?php echo $booking['has_payment'] ? 'A refund will be processed according to our cancellation policy.' : ''; ?>');">
                                     <input type="hidden" name="booking_id" value="<?php echo $booking['booking_id']; ?>">
                                     <button type="submit" name="cancel_booking" class="btn btn-cancel">
                                         <i class="fas fa-times"></i> Cancel Booking
@@ -566,34 +812,114 @@ while ($review = mysqli_fetch_assoc($reviews_result)) {
                                 </form>
                             <?php endif; ?>
 
-                            <?php if ($booking['status'] == 'confirmed' && $booking['total_amt'] === '0'): ?>
+                            <?php if ($booking['status'] == 'confirmed' && !$booking['has_payment']): ?>
                                 <a href="payment.php?booking_id=<?php echo $booking['booking_id']; ?>" class="btn btn-payment">
                                     <i class="fas fa-credit-card"></i> Pay Now
                                 </a>
                             <?php endif; ?>
-
-                            <?php 
-                                    if ($booking['status'] == 'completed'): 
-                                        $review_exists = isset($existing_reviews[$booking['photographer_id']]);
-                                        $review_details = $review_exists ? $existing_reviews[$booking['photographer_id']] : null;
+                            
+                            <?php if ($booking['has_payment']): ?>
+                                    <?php 
+                                    // Check if refund exists for this booking
+                                    $refund_check_sql = "SELECT * FROM tbl_refunds WHERE booking_id = ?";
+                                    $refund_stmt = mysqli_prepare($conn, $refund_check_sql);
+                                    mysqli_stmt_bind_param($refund_stmt, "i", $booking['booking_id']);
+                                    mysqli_stmt_execute($refund_stmt);
+                                    $refund_result = mysqli_stmt_get_result($refund_stmt);
+                                    $has_refund = mysqli_num_rows($refund_result) > 0;
+                                    
+                                    if (!$has_refund): 
                                     ?>
-                                        <?php if (!$review_exists): ?>
-                                            <a href="write-review.php?photographer_id=<?php echo $booking['photographer_id']; ?>&booking_id=<?php echo $booking['booking_id']; ?>" class="btn btn-review">
-                                                <i class="fas fa-star"></i> Write Review
-                                            </a>
-                                        <?php else: ?>
-                                            <a href="user-view-review.php?photographer_id=<?php echo $booking['photographer_id']; ?>&booking_id=<?php echo $booking['booking_id']; ?>" class="btn btn-review">
-                                                <i class="fas fa-eye"></i> View My Review
-                                            </a>
-                                        <?php endif; ?>
+                                        <a href="payment-receipt.php?booking_id=<?php echo $booking['booking_id']; ?>" class="btn btn-payment" target="_blank">
+                                            <i class="fas fa-file-invoice"></i> View Receipt
+                                        </a>
                                     <?php endif; ?>
+                                <?php endif; ?>
+
+
+                                <?php 
+                                    if ($booking['status'] == 'completed'): 
+                                        $review_exists = isset($existing_reviews[$booking['photographer_id']]) && 
+                                                        isset($existing_reviews[$booking['photographer_id']][$booking['booking_id']]);
+                                        if (!$review_exists):
+                                ?>
+                                    <a href="write-review.php?photographer_id=<?php echo $booking['photographer_id']; ?>&booking_id=<?php echo $booking['booking_id']; ?>" class="btn btn-review">
+                                        <i class="fas fa-star"></i> Write a Review
+                                    </a>
+                                <?php else: 
+                                    $review = $existing_reviews[$booking['photographer_id']][$booking['booking_id']];
+                                ?>
+                                    <a href="user-view-review.php?review_id=<?php echo $review['review_id']; ?>" class="btn btn-review">
+                                        <i class="fas fa-eye"></i> View Review
+                                    </a>
+                                    <?php
+                                        // Check if review is within 7 days for editing option
+                                        $review_date = new DateTime($review['created_at']);
+                                        $current_date = new DateTime();
+                                        $days_since_review = $current_date->diff($review_date)->days;
+                                        if ($days_since_review <= 7):
+                                    ?>
+                                    <a href="edit-review.php?review_id=<?php echo $review['review_id']; ?>" class="btn btn-secondary">
+                                        <i class="fas fa-edit"></i> Edit Review
+                                    </a>
+                                    <?php endif; ?>
+                                <?php 
+                                        endif;
+                                    endif; 
+                                ?>
                         </div>
                     </div>
                 <?php endforeach; ?>
-            <?php endif; ?>
-        </div>
+            </div>
+        <?php endif; ?>
     </div>
 
+    <!-- Refund Policy Modal -->
+    <div id="refundPolicyModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Booking Cancellation Policy</h2>
+            <p>Our refund policy is based on how soon you cancel after making payment:</p>
+            
+            <table class="policy-table">
+                <thead>
+                    <tr>
+                        <th>Time Since Payment</th>
+                        <th>Refund Percentage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($refund_policy as $policy): ?>
+                    <tr>
+                        <td><?php echo htmlspecialchars($policy['description']); ?></td>
+                        <td><?php echo $policy['percentage']; ?>%</td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <p style="margin-top: 20px; font-style: italic;">Note: Cancellations for bookings without payment will not incur any charges.</p>
+        </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Modal functionality
+        const modal = document.getElementById("refundPolicyModal");
+        const btn = document.getElementById("show-policy");
+        const span = document.getElementsByClassName("close")[0];
+
+        btn.onclick = function() {
+            modal.style.display = "block";
+        }
+
+        span.onclick = function() {
+            modal.style.display = "none";
+        }
+
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+    </script>
 </body>
 </html>

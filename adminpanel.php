@@ -76,60 +76,11 @@ function getTopPhotographers($conn, $limit = 5) {
     return $result;
 }
 
-function getMonthlyGrowth($conn, $type) {
-    $currentMonth = date('m');
-    $previousMonth = $currentMonth - 1 ?: 12;
-    
-    if ($type === 'photographers') {
-        $sql = "SELECT 
-                (SELECT COUNT(*) FROM tbl_user 
-                WHERE role = 'photographer' AND MONTH(created_at) = $currentMonth) as current,
-                (SELECT COUNT(*) FROM tbl_user 
-                WHERE role = 'photographer' AND MONTH(created_at) = $previousMonth) as previous";
-    } elseif ($type === 'bookings') {
-        $sql = "SELECT 
-                (SELECT COUNT(*) FROM tbl_booking 
-                WHERE MONTH(booking_date) = $currentMonth) as current,
-                (SELECT COUNT(*) FROM tbl_booking 
-                WHERE MONTH(booking_date) = $previousMonth) as previous";
-    } elseif ($type === 'revenue') {
-        $sql = "SELECT 
-                (SELECT SUM(total_amt) FROM tbl_booking 
-                WHERE MONTH(booking_date) = $currentMonth) as current,
-                (SELECT SUM(total_amt) FROM tbl_booking 
-                WHERE MONTH(booking_date) = $previousMonth) as previous";
-    } elseif ($type === 'rating') {
-        $sql = "SELECT 
-                (SELECT AVG(rating) FROM tbl_reviews 
-                WHERE MONTH(created_at) = $currentMonth) as current,
-                (SELECT AVG(rating) FROM tbl_reviews 
-                WHERE MONTH(created_at) = $previousMonth) as previous";
-    }
-    
-    $result = $conn->query($sql);
-    $row = $result->fetch_assoc();
-    
-    $current = $row['current'] ?: 0;
-    $previous = $row['previous'] ?: 1; // Avoid division by zero
-    
-    $percentChange = (($current - $previous) / $previous) * 100;
-    
-    return [
-        'percent' => round($percentChange, 1),
-        'direction' => $percentChange >= 0 ? 'up' : 'down'
-    ];
-}
-
 // Fetch actual data
 $totalPhotographers = getTotalPhotographers($conn);
 $activeBookings = getActiveBookings($conn);
 $totalRevenue = getTotalRevenue($conn);
 $averageRating = getAverageRating($conn);
-
-$photographerGrowth = getMonthlyGrowth($conn, 'photographers');
-$bookingGrowth = getMonthlyGrowth($conn, 'bookings');
-$revenueGrowth = getMonthlyGrowth($conn, 'revenue');
-$ratingGrowth = getMonthlyGrowth($conn, 'rating');
 
 $recentBookings = getRecentBookings($conn);
 $topPhotographers = getTopPhotographers($conn);
@@ -474,6 +425,10 @@ $topPhotographers = getTopPhotographers($conn);
             background-color: var(--success-color);
             color: white;
         }
+        .stat-card h3 i {
+            margin-right: 10px;
+            color: var(--secondary-color);
+        }
 
         .reject-btn {
             background-color: var(--accent-color);
@@ -625,42 +580,25 @@ $topPhotographers = getTopPhotographers($conn);
     </header>
 
     <main class="main-content">
-        <!-- Stats Cards -->
+                <!-- Stats Cards -->
         <div class="stats-grid">
             <div class="stat-card">
-                <h3>Total Photographers</h3>
+                <h3><i class="fas fa-user-tie"></i> Total Photographers</h3>
                 <div class="value"><?php echo $totalPhotographers; ?></div>
-                <div class="trend <?php echo $photographerGrowth['direction']; ?>">
-                    <i class="fas fa-arrow-<?php echo $photographerGrowth['direction']; ?>"></i>
-                    <?php echo abs($photographerGrowth['percent']); ?>% this month
-                </div>
             </div>
             <div class="stat-card">
-                <h3>Active Bookings</h3>
+                <h3><i class="fas fa-calendar-alt"></i> Active Bookings</h3>
                 <div class="value"><?php echo $activeBookings; ?></div>
-                <div class="trend <?php echo $bookingGrowth['direction']; ?>">
-                    <i class="fas fa-arrow-<?php echo $bookingGrowth['direction']; ?>"></i>
-                    <?php echo abs($bookingGrowth['percent']); ?>% this week
-                </div>
             </div>
             <div class="stat-card">
-                <h3>Total Revenue</h3>
-                <div class="value">$<?php echo number_format($totalRevenue, 2); ?></div>
-                <div class="trend <?php echo $revenueGrowth['direction']; ?>">
-                    <i class="fas fa-arrow-<?php echo $revenueGrowth['direction']; ?>"></i>
-                    <?php echo abs($revenueGrowth['percent']); ?>% this month
-                </div>
+                <h3><i class="fas fa-dollar-sign"></i> Total Revenue</h3>
+                <div class="value">₹<?php echo number_format($totalRevenue, 2); ?></div>
             </div>
             <div class="stat-card">
-                <h3>Average Rating</h3>
+                <h3><i class="fas fa-star"></i> Average Rating</h3>
                 <div class="value"><?php echo $averageRating; ?></div>
-                <div class="trend <?php echo $ratingGrowth['direction']; ?>">
-                    <i class="fas fa-arrow-<?php echo $ratingGrowth['direction']; ?>"></i>
-                    <?php echo abs($ratingGrowth['percent']); ?>% this month
-                </div>
             </div>
         </div>
-
         <!-- Pending Photographer Approvals -->
         <?php
         $pending_photographers = getPendingPhotographers($conn);
@@ -723,7 +661,7 @@ $topPhotographers = getTopPhotographers($conn);
                                 <td><?php echo $booking['client_name']; ?></td>
                                 <td><?php echo $booking['photographer_name']; ?></td>
                                 <td><?php echo date('M d, Y', strtotime($booking['event_date'])); ?></td>
-                                <td>$<?php echo number_format($booking['total_amt'], 2); ?></td>
+                                <td>₹<?php echo number_format($booking['total_amt'], 2); ?></td>
                                 <td><span class="status <?php echo strtolower($booking['status']); ?>"><?php echo ucfirst($booking['status']); ?></span></td>
                             </tr>
                         <?php } ?>
@@ -747,7 +685,6 @@ $topPhotographers = getTopPhotographers($conn);
                             <?php } ?>
                             <div class="photographer-info">
                                 <h4><?php echo $photographer['name']; ?></h4>
-                                <p><?php echo $photographer['category_name'] ?: 'Various Categories'; ?></p>
                             </div>
                             <div class="rating"><?php echo number_format($photographer['avg_rating'], 1); ?> ★</div>
                         </div>

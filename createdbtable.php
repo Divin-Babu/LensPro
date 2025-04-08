@@ -165,9 +165,29 @@ $sql = "CREATE TABLE IF NOT EXISTS tbl_photographer_pricing (
 )";
 
 if ($mysqli->query($sql)) {
-    echo "Table payment created successfully<br>";
+    echo "Table photographer pricing created successfully<br>";
 } else {
     echo "Error creating table: " . $mysqli->error . "<br>";
 }
+
+$sql="CREATE TABLE IF NOT EXISTS tbl_refunds (
+                    refund_id INT AUTO_INCREMENT PRIMARY KEY,
+                    payment_id INT,
+                    booking_id INT,
+                    original_amount DECIMAL(10,2) NOT NULL,
+                    refund_amount DECIMAL(10,2) NOT NULL,
+                    refund_percentage DECIMAL(5,2) NOT NULL,
+                    refund_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    status ENUM('pending', 'processed', 'completed') DEFAULT 'pending',
+                    FOREIGN KEY (payment_id) REFERENCES tbl_payment(payment_id),
+                    FOREIGN KEY (booking_id) REFERENCES tbl_booking(booking_id)
+)";
+
+if ($mysqli->query($sql)) {
+    echo "Table photographer pricing created successfully<br>";
+} else {
+    echo "Error creating table: " . $mysqli->error . "<br>";
+}
+
 $mysqli->close();
 ?>

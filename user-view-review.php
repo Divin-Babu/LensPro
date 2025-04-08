@@ -8,42 +8,74 @@ if (!isset($_SESSION['userid'])) {
     exit();
 }
 
-// Validate input parameters
-if (!isset($_GET['photographer_id']) || !isset($_GET['booking_id'])) {
+// Validate input parameters - now supporting both methods of access
+if (isset($_GET['review_id'])) {
+    // New method using review_id directly
+    $review_id = intval($_GET['review_id']);
+    
+    // Fetch review details
+    $review_query = "
+        SELECT 
+            r.review_id, 
+            r.rating, 
+            r.review_text, 
+            r.created_at,
+            p.name AS photographer_name,
+            p.profile_pic AS photographer_pic,
+            b.session_type,
+            b.event_date
+        FROM 
+            tbl_reviews r
+        JOIN 
+            tbl_user p ON r.photographer_id = p.user_id
+        JOIN
+            tbl_booking b ON r.booking_id = b.booking_id
+        WHERE 
+            r.user_id = ? 
+            AND r.review_id = ?
+    ";
+    
+    $stmt = mysqli_prepare($conn, $review_query);
+    mysqli_stmt_bind_param($stmt, "ii", $_SESSION['userid'], $review_id);
+    
+} elseif (isset($_GET['photographer_id']) && isset($_GET['booking_id'])) {
+    // Legacy method using photographer_id and booking_id
+    $photographer_id = intval($_GET['photographer_id']);
+    $booking_id = intval($_GET['booking_id']);
+    
+    // Fetch review details
+    $review_query = "
+        SELECT 
+            r.review_id, 
+            r.rating, 
+            r.review_text, 
+            r.created_at,
+            p.name AS photographer_name,
+            p.profile_pic AS photographer_pic,
+            b.session_type,
+            b.event_date
+        FROM 
+            tbl_reviews r
+        JOIN 
+            tbl_user p ON r.photographer_id = p.user_id
+        JOIN
+            tbl_booking b ON r.booking_id = b.booking_id
+        WHERE 
+            r.user_id = ? 
+            AND r.photographer_id = ? 
+            AND r.booking_id = ?
+    ";
+    
+    $stmt = mysqli_prepare($conn, $review_query);
+    mysqli_stmt_bind_param($stmt, "iii", $_SESSION['userid'], $photographer_id, $booking_id);
+    
+} else {
     $_SESSION['message'] = "Invalid review request.";
     $_SESSION['message_type'] = "error";
     header('Location: my-booking.php');
     exit();
 }
 
-$photographer_id = intval($_GET['photographer_id']);
-$booking_id = intval($_GET['booking_id']);
-
-// Fetch review details
-$review_query = "
-    SELECT 
-        r.review_id, 
-        r.rating, 
-        r.review_text, 
-        r.created_at,
-        p.name AS photographer_name,
-        p.profile_pic AS photographer_pic,
-        b.session_type,
-        b.event_date
-    FROM 
-        tbl_reviews r
-    JOIN 
-        tbl_user p ON r.photographer_id = p.user_id
-    JOIN
-        tbl_booking b ON r.booking_id = b.booking_id
-    WHERE 
-        r.user_id = ? 
-        AND r.photographer_id = ? 
-        AND r.booking_id = ?
-";
-
-$stmt = mysqli_prepare($conn, $review_query);
-mysqli_stmt_bind_param($stmt, "iii", $_SESSION['userid'], $photographer_id, $booking_id);
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 $review = mysqli_fetch_assoc($result);

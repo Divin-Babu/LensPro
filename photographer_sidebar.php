@@ -42,6 +42,12 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </a>
         </li>
         <li>
+            <a href="photographerviewpayment.php" class="<?php echo $current_page == 'photographerviewpayment.php' ? 'active' : ''; ?>">
+                <i class="fas fa-dollar"></i>
+                <span>Payments</span>
+            </a>
+        </li>
+        <li>
             <a href="logout.php">
                 <i class="fas fa-sign-out-alt"></i>
                 <span>Logout</span>

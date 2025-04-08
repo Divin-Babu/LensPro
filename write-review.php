@@ -12,7 +12,7 @@ if (!isset($_SESSION['userid'])) {
 $photographer_id = isset($_GET['photographer_id']) ? intval($_GET['photographer_id']) : 0;
 $booking_id = isset($_GET['booking_id']) ? intval($_GET['booking_id']) : 0;
 
-// Verify the booking belongs to the logged-in user and is completed
+
 $verify_query = "SELECT * FROM tbl_booking 
                  WHERE booking_id = ? 
                  AND user_id = ? 
@@ -43,19 +43,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $_SESSION['message'] = "Please provide a review description.";
         $_SESSION['message_type'] = "error";
     } else {
-        // Check if review already exists
         $check_review_query = "SELECT * FROM tbl_reviews 
-                                WHERE user_id = ? 
-                                AND photographer_id = ?";
-        $check_stmt = mysqli_prepare($conn, $check_review_query);
-        mysqli_stmt_bind_param($check_stmt, "ii", $_SESSION['userid'], $photographer_id);
-        mysqli_stmt_execute($check_stmt);
-        $existing_review = mysqli_stmt_get_result($check_stmt);
+                      WHERE user_id = ? 
+                      AND booking_id = ?";
+            $check_stmt = mysqli_prepare($conn, $check_review_query);
+            mysqli_stmt_bind_param($check_stmt, "ii", $_SESSION['userid'], $booking_id);
+            mysqli_stmt_execute($check_stmt);
+            $existing_review = mysqli_stmt_get_result($check_stmt);
 
-        if (mysqli_num_rows($existing_review) > 0) {
-            $_SESSION['message'] = "You have already reviewed this photographer.";
-            $_SESSION['message_type'] = "error";
-        } else {
+            if (mysqli_num_rows($existing_review) > 0) {
+                $_SESSION['message'] = "You have already reviewed this booking.";
+                $_SESSION['message_type'] = "error";
+            } else {
             // Insert review
             $insert_query = "INSERT INTO tbl_reviews 
                              (user_id, photographer_id, booking_id, rating, review_text) 
