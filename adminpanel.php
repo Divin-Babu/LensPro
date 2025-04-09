@@ -591,7 +591,7 @@ $topPhotographers = getTopPhotographers($conn);
                 <div class="value"><?php echo $activeBookings; ?></div>
             </div>
             <div class="stat-card">
-                <h3><i class="fas fa-dollar-sign"></i> Total Revenue</h3>
+                <h3><i class="fas fa-dollar-sign"></i> Total Payments</h3>
                 <div class="value">₹<?php echo number_format($totalRevenue, 2); ?></div>
             </div>
             <div class="stat-card">

@@ -119,12 +119,21 @@ if (!empty($booking_ids)) {
 // Calculate summary statistics
 $completedPaymentsAmount = 0;
 $pendingAmount = 0;
+$totalRefundedAmount = 0;
 
 foreach ($payments as $payment) {
     if ($payment['display_status'] == 'completed' && $payment['booking_status'] != 'cancelled') {
         $completedPaymentsAmount += $payment['total_amt'];
     } else if ($payment['display_status'] == 'incomplete') {
         $pendingAmount += $payment['total_amt'];
+    } else if ($payment['display_status'] == 'refunded') {
+        // Calculate the amount that was refunded
+        $refundAmount = isset($refund_amounts[$payment['booking_id']]) ? $refund_amounts[$payment['booking_id']] : 0;
+        $totalRefundedAmount += $refundAmount;
+        
+        // Add the non-refunded portion to completed payments
+        $nonRefundedAmount = $payment['total_amt'] - $refundAmount;
+        $completedPaymentsAmount += $nonRefundedAmount;
     }
 }
 
@@ -273,6 +282,10 @@ if (empty($years)) {
             color: var(--warning-color);
         }
 
+        .refunded .value {
+            color: var(--refund-color);
+        }
+
         .table-container {
             overflow-x: auto;
         }
@@ -360,6 +373,34 @@ if (empty($years)) {
             background-color: var(--secondary-color);
             color: white;
             border-color: var(--secondary-color);
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 250px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -125px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
         }
 
         @media (max-width: 768px) {
